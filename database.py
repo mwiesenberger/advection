@@ -68,6 +68,7 @@ def create( js):
         #First write the json file into the database
         # so that the program can read it as input
         with open( jsonfile(hashed), 'w') as f:
+            inputstring = json.dumps( js, sort_keys=True, ensure_ascii=True)
             f.write( inputstring)
             f.close()
         #Run the code to create netcdf file
