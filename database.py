@@ -54,7 +54,7 @@ class Manager :
     __path = './data'
     __out='nc'
     __script='execute.sh'
-    def __init__ (self, folder = './data', outfiletype='nc', script="execute.sh"):
+    def __init__ (self, folder = './data', outfiletype='nc', script="./execute.sh"):
         """ init the Manager class
 
         Parameters
@@ -105,7 +105,7 @@ class Manager :
                 f.close()
             #Run the code to create netcdf file
             try :
-                subprocess.run( ["bash", self.__script, self.jsonfile(hashed), ncfile],
+                subprocess.run( [self.__script, self.jsonfile(hashed), ncfile],
                         check=True, capture_output=True)
             except subprocess.CalledProcessError as e:
                 #clean up entry and escalate exception
@@ -119,6 +119,7 @@ class Manager :
         """ Select an output file based on its input parameters
 
         This functiont raises a ValueError exception if the file does not exist
+        (and thus can be used as an existence check)
         Parameters:
         js (dict) : The complete input file to the simulation
                     see also hashinput
@@ -139,6 +140,8 @@ class Manager :
 
         Use json.dumps(table(), indent=4) to pretty print
         Note that this table is searchable/ iteratable with standard python methods
+        This table will include both data created by this instance of the class
+        as well as previous instances of the class
 
         Returns:
         dict: {id : inputfile}
@@ -146,8 +149,12 @@ class Manager :
         table = {}
         for filename in glob.glob(self.__path+'/*.json') :
             with open( filename, 'r') as f:
-                params = json.load( f)
-                table[os.path.splitext( os.path.split(filename)[1])[0]] = params
+                js = json.load( f)
+                hashed = hashinput(js)
+                ncfile = self.outfile( hashed)
+                exists = os.path.isfile( ncfile)
+                if exists : # only add key if the output actually exists
+                    table[os.path.splitext( os.path.split(filename)[1])[0]] = js
                 # the key is the hash value
                 f.close()
         return table
@@ -194,8 +201,32 @@ class Manager :
 
 
     def delete_all (self) :
-        """ Delete all data in the database """
+        """ Delete all data in the database
+
+        This will delete all data that is displayed in the table method
+        """
         tab = self.table()
         for key in tab :
             print( key)
             self.delete( tab[key])
+
+
+# Limitations of this class
+# - the execution script is the highest requirement and should be documented
+#   so the class is more of a file creator than a database manager (in the
+#   classical sense)
+# - won't manage existing files (create View )
+# - won't manage several inputs - several outputs scenario ( in particular the one
+#   where a simulation is restarted over and over)
+# - won't be able to submit and wait (unless you misuse it on a cluster and
+#   just ignore the output file parameter)
+# - the input.json file can be viewed as the metadata of a simulation and we assume
+#   that it can uniquely identify the output (something which is not true if you do
+#   not include for example parallelization details)
+# Ideas on file views
+# - We can have a separate class managing a view of (input.json, outfile) pairs
+#   without creating files but just managing the inputs
+# - no functionality to create or delete files
+# - add single files or whole folders (assuming json and nc file has the name)
+# Idea on submit file creation
+# - maybe use the simple-slurm package to generate slurm scripts
