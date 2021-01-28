@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>No regularization &#8212; A Study of advection schemes</title>
+    <title>Comparison of various discontinuous Galerkin techniques for the advection equation &#8212; A Study of advection schemes</title>
     
   <link rel="stylesheet" href="_static/css/index.f658d18f9b420779cfdf24aa0a7e2d77.css">
 
@@ -57,7 +57,6 @@
     <script async="async" src="_static/sphinx-thebe.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="prev" title="Advection project" href="README.html" />
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="docsearch:language" content="en" />
@@ -76,6 +75,8 @@
         <div class="navbar-brand-box">
 <a class="navbar-brand text-wrap" href="index.html">
   
+  <img src="_static/logo.jpg" class="logo" alt="logo">
+  
   
   <h1 class="site-logo" id="site-title">A Study of advection schemes</h1>
   
@@ -86,30 +87,12 @@
 </form>
 <nav class="bd-links" id="bd-docs-nav" aria-label="Main navigation">
     <ul class="nav sidenav_l1">
- <li class="toctree-l1">
-  <a class="reference internal" href="README.html">
-   Advection project
-  </a>
- </li>
-</ul>
-<ul class="current nav sidenav_l1">
  <li class="toctree-l1 current active">
-  <a class="current reference internal" href="#">
-   No regularization
-  </a>
- </li>
- <li class="toctree-l1">
-  <a class="reference internal" href="#modal-filtering">
-   Modal filtering
-  </a>
- </li>
- <li class="toctree-l1">
-  <a class="reference internal" href="#viscosity-and-hyperviscosity">
-   Viscosity and hyperviscosity
+  <a class="reference internal" href="#">
+   Comparison of various discontinuous Galerkin techniques for the advection equation
   </a>
  </li>
 </ul>
-
 </nav> <!-- To handle the deprecated key -->
 
 <div class="navbar_extra_footer">
@@ -211,17 +194,17 @@
         </div>
         <nav id="bd-toc-nav">
             <ul class="nav section-nav flex-column">
- <li class="toc-h1 nav-item toc-entry">
-  <a class="reference internal nav-link" href="#">
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#no-regularization">
    No regularization
   </a>
  </li>
- <li class="toc-h1 nav-item toc-entry">
+ <li class="toc-h2 nav-item toc-entry">
   <a class="reference internal nav-link" href="#modal-filtering">
    Modal filtering
   </a>
  </li>
- <li class="toc-h1 nav-item toc-entry">
+ <li class="toc-h2 nav-item toc-entry">
   <a class="reference internal nav-link" href="#viscosity-and-hyperviscosity">
    Viscosity and hyperviscosity
   </a>
@@ -237,7 +220,8 @@
         
               <div>
                 
-  <p>We want to analyse and compare the data in the repository now</p>
+  <div class="section" id="comparison-of-various-discontinuous-galerkin-techniques-for-the-advection-equation">
+<h1>Comparison of various discontinuous Galerkin techniques for the advection equation<a class="headerlink" href="#comparison-of-various-discontinuous-galerkin-techniques-for-the-advection-equation" title="Permalink to this headline">¶</a></h1>
 <div class="cell tag_remov-cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># PLOT ALL INTO FILE</span>
@@ -249,7 +233,7 @@
 </div>
 <p>Let us now tell a story</p>
 <div class="section" id="no-regularization">
-<h1>No regularization<a class="headerlink" href="#no-regularization" title="Permalink to this headline">¶</a></h1>
+<h2>No regularization<a class="headerlink" href="#no-regularization" title="Permalink to this headline">¶</a></h2>
 <div class="cell tag_hide-input docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">found</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span> <span class="k">lambda</span> <span class="n">entry</span> <span class="p">:</span> <span class="p">(</span>
@@ -340,7 +324,7 @@
 <p>Only the upwind scheme with correct multiplication and projection of polynomials seems to work reliably without regularization. Only small oscillations are visible.</p>
 </div>
 <div class="section" id="modal-filtering">
-<h1>Modal filtering<a class="headerlink" href="#modal-filtering" title="Permalink to this headline">¶</a></h1>
+<h2>Modal filtering<a class="headerlink" href="#modal-filtering" title="Permalink to this headline">¶</a></h2>
 <div class="cell tag_hide-input docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">found</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span> <span class="k">lambda</span> <span class="n">entry</span> <span class="p">:</span> <span class="p">(</span>
@@ -398,7 +382,8 @@
 </ul>
 </div>
 <div class="section" id="viscosity-and-hyperviscosity">
-<h1>Viscosity and hyperviscosity<a class="headerlink" href="#viscosity-and-hyperviscosity" title="Permalink to this headline">¶</a></h1>
+<h2>Viscosity and hyperviscosity<a class="headerlink" href="#viscosity-and-hyperviscosity" title="Permalink to this headline">¶</a></h2>
+</div>
 </div>
 
     <script type="text/x-thebe-config">
@@ -429,7 +414,6 @@
     
     <div class='prev-next-bottom'>
         
-    <a class='left-prev' id="prev-link" href="README.html" title="previous page">Advection project</a>
 
     </div>
     <footer class="footer mt-5 mt-md-0">
