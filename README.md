@@ -1,6 +1,7 @@
 # Advection project
 
 Testing and exploration ground for advection and regularization schemes.
+Generate the site https://mwiesenberger.github.io/advection
 
 ## Install
 In order to generate the static website we use
@@ -31,7 +32,7 @@ jupyter-book build path/to/advection
 To publish changes after the book was built
 ```bash
 cd path/to/advection
-ghp-import -n -f -p _/build/html
+ghp-import -n -f -p _build/html
 ```
 
 ## How to reproduce the results
