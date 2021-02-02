@@ -28,3 +28,6 @@ html:
   use_repository_button: true
 
 only_build_toc_files: true
+# Enable to use latex environment
+parse:
+    myst_extended_syntax: true
