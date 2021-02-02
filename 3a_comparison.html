@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comparison of various discontinuous Galerkin techniques for the advection equation &#8212; A Study of advection schemes</title>
+    <title>Discontinuous Galerkin for the advection equation &#8212; A Study of advection schemes</title>
     
   <link rel="stylesheet" href="_static/css/index.f658d18f9b420779cfdf24aa0a7e2d77.css">
 
@@ -89,7 +89,7 @@
     <ul class="nav sidenav_l1">
  <li class="toctree-l1 current active">
   <a class="reference internal" href="#">
-   Comparison of various discontinuous Galerkin techniques for the advection equation
+   Discontinuous Galerkin for the advection equation
   </a>
  </li>
 </ul>
@@ -195,8 +195,38 @@
         <nav id="bd-toc-nav">
             <ul class="nav section-nav flex-column">
  <li class="toc-h2 nav-item toc-entry">
-  <a class="reference internal nav-link" href="#no-regularization">
-   No regularization
+  <a class="reference internal nav-link" href="#motivation">
+   Motivation
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#a-simple-test-scenario">
+   A simple test scenario
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#initial-condition">
+   Initial condition
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#a-naive-approach">
+   A naive approach
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#arakawa">
+   Arakawa
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#upwind-scheme">
+   Upwind scheme
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#correct-multiplication-of-dg-polynomials">
+   Correct multiplication of dG polynomials
   </a>
  </li>
  <li class="toc-h2 nav-item toc-entry">
@@ -220,159 +250,201 @@
         
               <div>
                 
-  <div class="section" id="comparison-of-various-discontinuous-galerkin-techniques-for-the-advection-equation">
-<h1>Comparison of various discontinuous Galerkin techniques for the advection equation<a class="headerlink" href="#comparison-of-various-discontinuous-galerkin-techniques-for-the-advection-equation" title="Permalink to this headline">¶</a></h1>
-<div class="cell tag_remov-cell docutils container">
-<div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># PLOT ALL INTO FILE</span>
-<span class="c1">#for f in content:</span>
-<span class="c1">#    plot(f,True)</span>
-</pre></div>
+  <div class="section" id="discontinuous-galerkin-for-the-advection-equation">
+<h1>Discontinuous Galerkin for the advection equation<a class="headerlink" href="#discontinuous-galerkin-for-the-advection-equation" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="motivation">
+<h2>Motivation<a class="headerlink" href="#motivation" title="Permalink to this headline">¶</a></h2>
+<p>The motivation for this study stems from the observation that our 3d turbulence simulations in Feltor seem to</p>
+<ul class="simple">
+<li><p>require a significant higher resolution  and</p></li>
+<li><p>seem to generate significantly smaller scales</p></li>
+</ul>
+<p>than finite Difference simulations of the same region like Grillix or Tokam3X.
+Since our simulations operate at the limit of our available HPC resources simply increasing the resolution further is not an option. This results in the situation where Feltor cannot simulate the same regions of the tokamak that other frameworks seem to be able to.</p>
+<p>Currently, there are two hypotheses</p>
+<ul class="simple">
+<li><p>the gyro-fluid model in use physically produces smaller scales than the drift-fluid models</p></li>
+<li><p>the required high resolution is a fundamental problem of the discontinuous Galerkin discretization</p></li>
+</ul>
+<p>In this report we want to test the second hypothesis in more detail. In order to do this we consider a simple test scenario as a testbed for a variety of dG and FD discretization and filter techniques.</p>
 </div>
+<div class="section" id="a-simple-test-scenario">
+<h2>A simple test scenario<a class="headerlink" href="#a-simple-test-scenario" title="Permalink to this headline">¶</a></h2>
+<p>We consider the 2d incompressible Euler equations</p>
+<div class="amsmath math notranslate nohighlight" id="equation-d95078a0-55fd-4c62-83a1-deae2c04b7cd">
+<span class="eqno">(1)<a class="headerlink" href="#equation-d95078a0-55fd-4c62-83a1-deae2c04b7cd" title="Permalink to this equation">¶</a></span>\[\begin{align}
+    \frac{\partial \omega}{\partial t} + \nabla\cdot({\vec v \omega}) = 0 \nonumber\\
+\omega = - \Delta\phi \quad v_x = - \phi_y \quad v_y = \phi_x
+\end{align}\]</div>
+<p>with vorticity <span class="math notranslate nohighlight">\(\omega\)</span> and stream-function <span class="math notranslate nohighlight">\(\phi\)</span>. The Euler equations have an infinite amount of conserved quantities
+among them the total vorticity <span class="math notranslate nohighlight">\(V\)</span>, the kinetic energy <span class="math notranslate nohighlight">\(E\)</span> and the enstrophy <span class="math notranslate nohighlight">\(\Omega\)</span></p>
+<div class="amsmath math notranslate nohighlight" id="equation-25eb680b-5975-4c70-8dc1-2f4df860c611">
+<span class="eqno">(2)<a class="headerlink" href="#equation-25eb680b-5975-4c70-8dc1-2f4df860c611" title="Permalink to this equation">¶</a></span>\[\begin{align}
+     V := \int_D \omega \mathrm{d}A\quad
+     E :=\frac{1}{2} \int_D \left( \nabla \phi\right)^2 \mathrm{d}A \quad
+     \Omega_n:= \frac{1}{2} \int_D \omega^{2n }\mathrm{d}A
+ \end{align}\]</div>
+<p>Often, these invariants are taken as a measure of quality of the integrator.</p>
 </div>
-</div>
-<p>Let us now tell a story</p>
-<div class="section" id="no-regularization">
-<h2>No regularization<a class="headerlink" href="#no-regularization" title="Permalink to this headline">¶</a></h2>
-<div class="cell tag_hide-input docutils container">
-<div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">found</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span> <span class="k">lambda</span> <span class="n">entry</span> <span class="p">:</span> <span class="p">(</span>
-            <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;init&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;shear&quot;</span>
-        <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;advection&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="s2">&quot;multiplication&quot;</span><span class="p">:</span> <span class="s2">&quot;pointwise&quot;</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span> <span class="p">:</span> <span class="s2">&quot;arakawa&quot;</span><span class="p">}</span>
-        <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;regularization&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span>
-        <span class="ow">and</span> <span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span><span class="p">)</span>
-       <span class="p">),</span>
-    <span class="n">content</span><span class="p">))</span>
-<span class="n">found</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span> <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">f</span> <span class="p">:</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">])</span> <span class="c1"># SORT ACCORDING TO N</span>
-<span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">found</span><span class="p">:</span>
-    <span class="n">plot</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
+<div class="section" id="initial-condition">
+<h2>Initial condition<a class="headerlink" href="#initial-condition" title="Permalink to this headline">¶</a></h2>
+<p>We consider the double shear layer problem</p>
+<div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
 <img alt="_images/3a_comparison_9_0.png" src="_images/3a_comparison_9_0.png" />
-<img alt="_images/3a_comparison_9_1.png" src="_images/3a_comparison_9_1.png" />
 </div>
 </div>
-<ul class="simple">
-<li><p>The Arakawa scheme without regularization is always unstable!!</p></li>
-<li><p>Note that the higher order simulation takes 5-6 times longer to complete</p></li>
-</ul>
-<div class="cell tag_hide-input docutils container">
-<div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">found</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span> <span class="k">lambda</span> <span class="n">entry</span> <span class="p">:</span> <span class="p">(</span>
-            <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;init&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;shear&quot;</span>
-        <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;advection&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="s2">&quot;multiplication&quot;</span><span class="p">:</span> <span class="s2">&quot;pointwise&quot;</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span> <span class="p">:</span> <span class="s2">&quot;centered&quot;</span><span class="p">}</span>
-        <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;regularization&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span> <span class="c1"># and entry[&quot;regularization&quot;][&quot;order&quot;] == 2):</span>
-        <span class="ow">and</span> <span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">5</span><span class="p">)</span>
-       <span class="p">),</span>
-    <span class="n">content</span><span class="p">))</span>
-<span class="n">found</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span> <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">f</span> <span class="p">:</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">])</span> <span class="c1"># SORT ACCORDING TO N</span>
-<span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">found</span><span class="p">:</span>
-    <span class="n">plot</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-</pre></div>
+<p>We will then integrate the solution from <span class="math notranslate nohighlight">\(t=0\)</span> to <span class="math notranslate nohighlight">\(t=10\)</span> using various methods.</p>
 </div>
-</div>
+<div class="section" id="a-naive-approach">
+<h2>A naive approach<a class="headerlink" href="#a-naive-approach" title="Permalink to this headline">¶</a></h2>
+<p>The first approach to discretize is to simply use centered differences (or the dG analogue) for the flux</p>
+<div class="amsmath math notranslate nohighlight" id="equation-2f3c5579-a9fe-446f-85c2-13745c818eb7">
+<span class="eqno">(3)<a class="headerlink" href="#equation-2f3c5579-a9fe-446f-85c2-13745c818eb7" title="Permalink to this equation">¶</a></span>\[\begin{align} 
+\frac{\partial}{\partial x} f \rightarrow \frac{f_{i+1}-f_{i-1}}{2h_x}
+\end{align}\]</div>
+<p>It is well known that the forward in time, centered in space method for solving
+hyperbolic systems is <strong>unconditionally unstable</strong> <a class="bibtex reference internal" href="#id13" id="id1">[LeV02]</a>.
+Reference <a class="bibtex reference internal" href="#id14" id="id2">[LS00]</a> reports that the centered flux does not have any numerical
+diffusion while the upwind flux does.
+They also prove that upwind and centered fluxes do not dissipate energy.</p>
+<p id="bibtex-bibliography-3a_comparison-0"><dl class="citation">
+<dt class="bibtex label" id="einkemmer2014"><span class="brackets">EW14</span></dt>
+<dd><p>L. Einkemmer and M. Wiesenberger. A conservative discontinuous galerkin scheme for the 2d incompressible navier–stokes equations. <em>Comput. Phys. Commun.</em>, 185(11):2865–2873, 2014. <a class="reference external" href="https://doi.org/10.1016/j.cpc.2014.07.007">doi:10.1016/j.cpc.2014.07.007</a>.</p>
+</dd>
+<dt class="bibtex label" id="nodaldg"><span class="brackets">HW08</span></dt>
+<dd><p>J.S. Hesthaven and T. Warburton. <em>Nodal discontinuous Galerkin methods: algorithms, analysis, and applications</em>. Texts in Applied Mathematics. Springer Media, 2008.</p>
+</dd>
+<dt class="bibtex label" id="leveque"><span class="brackets">LeV02</span></dt>
+<dd><p>R.J. LeVeque. <em>Finite Volume Methods for Hyperbolic Problems</em>. Cambridge Texts in Applied Mathematics. Cambridge University Press, 2002.</p>
+</dd>
+<dt class="bibtex label" id="liu2000"><span class="brackets">LS00</span></dt>
+<dd><p>J.G. Liu and C.W. Shu. A high-order discontinuous galerkin method for 2d incompressible flows. <em>J. Comput. Phys.</em>, 160:557–596, 2000. <a class="reference external" href="https://doi.org/10.1006/jcph.2000.6475">doi:10.1006/jcph.2000.6475</a>.</p>
+</dd>
+</dl>
+</p>
+<div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
 <img alt="_images/3a_comparison_11_0.png" src="_images/3a_comparison_11_0.png" />
 <img alt="_images/3a_comparison_11_1.png" src="_images/3a_comparison_11_1.png" />
 </div>
 </div>
-<p>Just as the centered scheme is</p>
-<div class="cell tag_hide-input docutils container">
-<div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">found</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span> <span class="k">lambda</span> <span class="n">entry</span> <span class="p">:</span> <span class="p">(</span>
-            <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;init&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;shear&quot;</span>
-        <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;advection&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="s2">&quot;multiplication&quot;</span><span class="p">:</span> <span class="s2">&quot;pointwise&quot;</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span> <span class="p">:</span> <span class="s2">&quot;upwind&quot;</span><span class="p">}</span>
-        <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;regularization&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span> <span class="c1"># and entry[&quot;regularization&quot;][&quot;order&quot;] == 2):</span>
-        <span class="ow">and</span> <span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">or</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">5</span><span class="p">)</span>
-       <span class="p">),</span>
-    <span class="n">content</span><span class="p">))</span>
-<span class="n">found</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span> <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">f</span> <span class="p">:</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">])</span> <span class="c1"># SORT ACCORDING TO N</span>
-<span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">found</span><span class="p">:</span>
-    <span class="n">plot</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-</pre></div>
+<p>We observe that</p>
+<ul class="simple">
+<li><p>both the FD and the dG scheme of order 5 produce a lot of oscillations</p></li>
+<li><p>even though the number of spatial points is the same (~140) the dG scheme has to use a 5 times smaller time step</p></li>
+</ul>
 </div>
-</div>
+<div class="section" id="arakawa">
+<h2>Arakawa<a class="headerlink" href="#arakawa" title="Permalink to this headline">¶</a></h2>
+<p>The Arakawa scheme was generalized for dG methods in <a class="bibtex reference internal" href="#id11" id="id3">[EW14]</a> and is a method that conserves vorticity, energy and enstrophy exactly. Just as for the centered differences it is well-known that the scheme produces oscillations without a diffusive term.</p>
+<div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
 <img alt="_images/3a_comparison_13_0.png" src="_images/3a_comparison_13_0.png" />
 <img alt="_images/3a_comparison_13_1.png" src="_images/3a_comparison_13_1.png" />
-<img alt="_images/3a_comparison_13_2.png" src="_images/3a_comparison_13_2.png" />
-</div>
-</div>
-<p>The upwind scheme of first order introduces a lot of numerical diffusion, while the higher order schemes with pointwise multiplication seem to be unstable at symmetry points</p>
-<div class="cell tag_hide-input docutils container">
-<div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">found</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span> <span class="k">lambda</span> <span class="n">entry</span> <span class="p">:</span> <span class="p">(</span>
-            <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;init&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;shear&quot;</span>
-        <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;advection&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="s2">&quot;multiplication&quot;</span><span class="p">:</span> <span class="s2">&quot;projection&quot;</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span> <span class="p">:</span> <span class="s2">&quot;upwind&quot;</span><span class="p">}</span>
-        <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;regularization&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span> <span class="c1"># and entry[&quot;regularization&quot;][&quot;order&quot;] == 2):</span>
-        <span class="ow">and</span> <span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">or</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">5</span><span class="p">)</span>
-       <span class="p">),</span>
-    <span class="n">content</span><span class="p">))</span>
-<span class="n">found</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span> <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">f</span> <span class="p">:</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">])</span> <span class="c1"># SORT ACCORDING TO N</span>
-<span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">found</span><span class="p">:</span>
-    <span class="n">plot</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-<div class="cell_output docutils container">
-<img alt="_images/3a_comparison_15_0.png" src="_images/3a_comparison_15_0.png" />
-<img alt="_images/3a_comparison_15_1.png" src="_images/3a_comparison_15_1.png" />
-</div>
-</div>
-<p>Only the upwind scheme with correct multiplication and projection of polynomials seems to work reliably without regularization. Only small oscillations are visible.</p>
-</div>
-<div class="section" id="modal-filtering">
-<h2>Modal filtering<a class="headerlink" href="#modal-filtering" title="Permalink to this headline">¶</a></h2>
-<div class="cell tag_hide-input docutils container">
-<div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">found</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span> <span class="k">lambda</span> <span class="n">entry</span> <span class="p">:</span> <span class="p">(</span>
-            <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;init&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;shear&quot;</span>
-        <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;advection&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="s2">&quot;multiplication&quot;</span><span class="p">:</span> <span class="s2">&quot;projection&quot;</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span> <span class="p">:</span> <span class="s2">&quot;upwind&quot;</span><span class="p">}</span>
-        <span class="ow">and</span> <span class="p">(</span> <span class="c1">#(entry[&quot;regularization&quot;][&quot;type&quot;] == &quot;modal&quot; and entry[&quot;regularization&quot;][&quot;eta_c&quot;] == 0.0)</span>
-             <span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;regularization&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;modal&quot;</span> <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;regularization&quot;</span><span class="p">][</span><span class="s2">&quot;eta_c&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mf">0.5</span><span class="p">)</span>
-            <span class="p">)</span>
-        <span class="ow">and</span> <span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">or</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">5</span><span class="p">)</span>
-       <span class="p">),</span>
-    <span class="n">content</span><span class="p">))</span>
-<span class="n">found</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span> <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">f</span> <span class="p">:</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">])</span> <span class="c1"># SORT ACCORDING TO N</span>
-<span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">found</span><span class="p">:</span>
-    <span class="n">plot</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-<div class="cell_output docutils container">
-<img alt="_images/3a_comparison_18_0.png" src="_images/3a_comparison_18_0.png" />
-<img alt="_images/3a_comparison_18_1.png" src="_images/3a_comparison_18_1.png" />
 </div>
 </div>
 <ul class="simple">
-<li><p>The modal Filter introduces numerical diffusion but seems to have troubles at the symmetry points</p></li>
-<li><p>also true for <span class="math notranslate nohighlight">\(\eta_c = 0\)</span> filter and the pointwise method</p></li>
+<li><p>The Arakawa scheme without regularization is indeed always unstable (also for projection method described later)</p></li>
+<li><p>Note that the higher order simulation takes 5-6 times longer to complete</p></li>
 </ul>
-<div class="cell tag_hide_input docutils container">
-<div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">found</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span> <span class="k">lambda</span> <span class="n">entry</span> <span class="p">:</span> <span class="p">(</span>
-            <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;init&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;shear&quot;</span>
-        <span class="ow">and</span> <span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;advection&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="s2">&quot;multiplication&quot;</span><span class="p">:</span> <span class="s2">&quot;pointwise&quot;</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span> <span class="p">:</span> <span class="s2">&quot;arakawa&quot;</span><span class="p">})</span>
-            <span class="c1">#or entry[&quot;advection&quot;] == {&quot;multiplication&quot;: &quot;projection&quot;, &quot;type&quot; : &quot;centered&quot;})</span>
-        <span class="ow">and</span> <span class="p">(</span> <span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;regularization&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;modal&quot;</span> <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;regularization&quot;</span><span class="p">][</span><span class="s2">&quot;eta_c&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">)</span>
-             <span class="ow">or</span> <span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;regularization&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;modal&quot;</span> <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;regularization&quot;</span><span class="p">][</span><span class="s2">&quot;eta_c&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mf">0.5</span><span class="p">)</span>
-             <span class="ow">or</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;regularization&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span><span class="p">)</span>
-        <span class="ow">and</span> <span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">5</span><span class="p">)</span>
-       <span class="p">),</span>
-    <span class="n">content</span><span class="p">))</span>
-<span class="n">found</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span> <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">f</span> <span class="p">:</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">][</span><span class="s2">&quot;n&quot;</span><span class="p">])</span> <span class="c1"># SORT ACCORDING TO N</span>
-<span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">found</span><span class="p">:</span>
-    <span class="n">plot</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-</pre></div>
+</div>
+<div class="section" id="upwind-scheme">
+<h2>Upwind scheme<a class="headerlink" href="#upwind-scheme" title="Permalink to this headline">¶</a></h2>
+<p>The idea of an upwind scheme is to use either a forward or a backward discretization of the flux <span class="math notranslate nohighlight">\(f=\omega v\)</span> depending on the sign of the velocity</p>
+<div class="amsmath math notranslate nohighlight" id="equation-640d22b6-f79f-4bd9-8335-2a7c1dd6cae4">
+<span class="eqno">(4)<a class="headerlink" href="#equation-640d22b6-f79f-4bd9-8335-2a7c1dd6cae4" title="Permalink to this equation">¶</a></span>\[\begin{align}
+\frac{\partial}{\partial x} f \rightarrow \begin{cases}
+    \frac{f_{i+1}-f_i}{h} \text{ if } v &lt; 0 \\
+    \frac{f_{i} - f_{i-1}}{h} \text{  if } v &gt; 0
+    \end{cases}
+\end{align}\]</div>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/3a_comparison_15_0.png" src="_images/3a_comparison_15_0.png" />
+<img alt="_images/3a_comparison_15_1.png" src="_images/3a_comparison_15_1.png" />
+<img alt="_images/3a_comparison_15_2.png" src="_images/3a_comparison_15_2.png" />
 </div>
 </div>
+<ul class="simple">
+<li><p>The upwind scheme of first order introduces a lot of numerical diffusion,</p></li>
+<li><p>the higher order dG schemes with pointwise multiplication seem to be unstable at symmetry points</p></li>
+</ul>
+</div>
+<div class="section" id="correct-multiplication-of-dg-polynomials">
+<h2>Correct multiplication of dG polynomials<a class="headerlink" href="#correct-multiplication-of-dg-polynomials" title="Permalink to this headline">¶</a></h2>
+<p>In the computation of the flux <span class="math notranslate nohighlight">\(n v\)</span> the approach that we used above (termed <strong>pointwise</strong>) was to simply compute the pointwise multiplication of the nodal discretization <a class="bibtex reference internal" href="#id12" id="id4">[HW08]</a>. However, the correct approach when multiplying
+two dG discretized functions is to interpolate both onto a  higher degree polynomial (of degree <span class="math notranslate nohighlight">\(2n\)</span>) and then projecting the result back unto the lower degree polynomial <span class="math notranslate nohighlight">\(n\)</span>). We call this the <strong>projection</strong> method <a class="bibtex reference internal" href="#id12" id="id5">[HW08]</a>.</p>
+<p id="bibtex-bibliography-3a_comparison-1"><dl class="citation">
+<dt class="bibtex label" id="id7"><span class="brackets">EW14</span></dt>
+<dd><p>L. Einkemmer and M. Wiesenberger. A conservative discontinuous galerkin scheme for the 2d incompressible navier–stokes equations. <em>Comput. Phys. Commun.</em>, 185(11):2865–2873, 2014. <a class="reference external" href="https://doi.org/10.1016/j.cpc.2014.07.007">doi:10.1016/j.cpc.2014.07.007</a>.</p>
+</dd>
+<dt class="bibtex label" id="id8"><span class="brackets">HW08</span></dt>
+<dd><p>J.S. Hesthaven and T. Warburton. <em>Nodal discontinuous Galerkin methods: algorithms, analysis, and applications</em>. Texts in Applied Mathematics. Springer Media, 2008.</p>
+</dd>
+<dt class="bibtex label" id="id9"><span class="brackets">LeV02</span></dt>
+<dd><p>R.J. LeVeque. <em>Finite Volume Methods for Hyperbolic Problems</em>. Cambridge Texts in Applied Mathematics. Cambridge University Press, 2002.</p>
+</dd>
+<dt class="bibtex label" id="id10"><span class="brackets">LS00</span></dt>
+<dd><p>J.G. Liu and C.W. Shu. A high-order discontinuous galerkin method for 2d incompressible flows. <em>J. Comput. Phys.</em>, 160:557–596, 2000. <a class="reference external" href="https://doi.org/10.1006/jcph.2000.6475">doi:10.1006/jcph.2000.6475</a>.</p>
+</dd>
+</dl>
+</p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/3a_comparison_17_0.png" src="_images/3a_comparison_17_0.png" />
+<img alt="_images/3a_comparison_17_1.png" src="_images/3a_comparison_17_1.png" />
+</div>
+</div>
+<ul class="simple">
+<li><p>Only the upwind scheme with correct multiplication and projection of polynomials seems to work reliably without regularization. Only small oscillations are visible.</p></li>
+</ul>
+</div>
+<div class="section" id="modal-filtering">
+<h2>Modal filtering<a class="headerlink" href="#modal-filtering" title="Permalink to this headline">¶</a></h2>
+<p>In <a class="bibtex reference internal" href="#id12" id="id6">[HW08]</a> an alternative to the projection method was suggested to stabilize dG methods. The modal filter can be thought of as a de-aliasing technique for dG methods and is thought to be an alternative to artificial diffusion techniques.
+The technique consists in applying the filter <span class="math notranslate nohighlight">\(f(\eta)\)</span> to each mode <span class="math notranslate nohighlight">\(\eta\)</span> after every timestep</p>
+<div class="amsmath math notranslate nohighlight" id="equation-e4545915-5b49-4c39-9d3d-76b5edc611bf">
+<span class="eqno">(5)<a class="headerlink" href="#equation-e4545915-5b49-4c39-9d3d-76b5edc611bf" title="Permalink to this equation">¶</a></span>\[\begin{align}
+\omega_\eta^{n+1} = f(\eta) \omega_\eta^n
+\end{align}\]</div>
+<p>We experiment with the exponential filter shown in the next graph</p>
+<p><img alt="Filter function" src="_images/filter.png" /></p>
+<p id="bibtex-bibliography-3a_comparison-2"><dl class="citation">
+<dt class="bibtex label" id="id11"><span class="brackets">EW14</span></dt>
+<dd><p>L. Einkemmer and M. Wiesenberger. A conservative discontinuous galerkin scheme for the 2d incompressible navier–stokes equations. <em>Comput. Phys. Commun.</em>, 185(11):2865–2873, 2014. <a class="reference external" href="https://doi.org/10.1016/j.cpc.2014.07.007">doi:10.1016/j.cpc.2014.07.007</a>.</p>
+</dd>
+<dt class="bibtex label" id="id12"><span class="brackets">HW08</span></dt>
+<dd><p>J.S. Hesthaven and T. Warburton. <em>Nodal discontinuous Galerkin methods: algorithms, analysis, and applications</em>. Texts in Applied Mathematics. Springer Media, 2008.</p>
+</dd>
+<dt class="bibtex label" id="id13"><span class="brackets">LeV02</span></dt>
+<dd><p>R.J. LeVeque. <em>Finite Volume Methods for Hyperbolic Problems</em>. Cambridge Texts in Applied Mathematics. Cambridge University Press, 2002.</p>
+</dd>
+<dt class="bibtex label" id="id14"><span class="brackets">LS00</span></dt>
+<dd><p>J.G. Liu and C.W. Shu. A high-order discontinuous galerkin method for 2d incompressible flows. <em>J. Comput. Phys.</em>, 160:557–596, 2000. <a class="reference external" href="https://doi.org/10.1006/jcph.2000.6475">doi:10.1006/jcph.2000.6475</a>.</p>
+</dd>
+</dl>
+</p>
+<p>First, let us try to apply the filter to the upwind scheme with pointwise multiplication (as was originally suggested)</p>
+<div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
 <img alt="_images/3a_comparison_20_0.png" src="_images/3a_comparison_20_0.png" />
 <img alt="_images/3a_comparison_20_1.png" src="_images/3a_comparison_20_1.png" />
 <img alt="_images/3a_comparison_20_2.png" src="_images/3a_comparison_20_2.png" />
+<img alt="_images/3a_comparison_20_3.png" src="_images/3a_comparison_20_3.png" />
+</div>
+</div>
+<ul class="simple">
+<li><p>The modal Filter introduces numerical diffusion but seems to have troubles at the symmetry points</p></li>
+<li><p>also true for <span class="math notranslate nohighlight">\(\eta_c = 0\)</span> filter and the projection method</p></li>
+<li><p>in a way the modal filter is a projection filter (projecting out high frequencies) and should thus be equivalent to a projection method of lower order and the same number of cells</p></li>
+</ul>
+<p>Let us now try to apply the modal filter on the Arakawa scheme</p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/3a_comparison_22_0.png" src="_images/3a_comparison_22_0.png" />
+<img alt="_images/3a_comparison_22_1.png" src="_images/3a_comparison_22_1.png" />
+<img alt="_images/3a_comparison_22_2.png" src="_images/3a_comparison_22_2.png" />
 </div>
 </div>
 <ul class="simple">
@@ -380,9 +452,24 @@
 <li><p>The modal filter with <span class="math notranslate nohighlight">\(\eta_c=0.0\)</span>, <span class="math notranslate nohighlight">\(s=8\)</span> and <span class="math notranslate nohighlight">\(\alpha=36\)</span> further dampens the oscillations but overdampens the vortex structure while still having trouble at the symmetry points</p></li>
 <li><p>This situation is the same for the projection and the centered methods</p></li>
 </ul>
+<p><strong>The modal filter is unable to make the unstable techniques stable and is somewhat similar to a projection method of lower order</strong> -&gt; maybe look more into equivalence of projection and modal filtering? Especially for order 3 this seems evident</p>
 </div>
 <div class="section" id="viscosity-and-hyperviscosity">
 <h2>Viscosity and hyperviscosity<a class="headerlink" href="#viscosity-and-hyperviscosity" title="Permalink to this headline">¶</a></h2>
+<p>In order to make the centered and Arakawa discretization stable, usually artificial viscosity is added to the equations to discretize</p>
+<div class="amsmath math notranslate nohighlight" id="equation-89eace94-435a-4e9f-a1cb-bb62d830307f">
+<span class="eqno">(6)<a class="headerlink" href="#equation-89eace94-435a-4e9f-a1cb-bb62d830307f" title="Permalink to this equation">¶</a></span>\[\begin{align}
+ \frac{\partial}{\partial t} + \nabla \cdot ( \omega \vec v) = - (-\nu \Delta)^s \omega
+ \end{align}\]</div>
+<p>where <span class="math notranslate nohighlight">\(s=1,2,...\)</span> is the order. This technique clearly destroys the exact energy
+and enstrophy conservation of the original system.
+Since Fourier modes are Eigenfunctions of the Laplace operator the artificial viscosity can be seen as a low pass filters of order <span class="math notranslate nohighlight">\(s\)</span> for spectral schemes. In contrast to a modal dG filter however, the spectral filter applies to the entire box as a whole and not just to individual cells.
+We now want to show that</p>
+<ul class="simple">
+<li><p>the schemes that produce less oscillations also need less viscosity</p></li>
+<li><p>in particular the order 1 arakawa scheme needs less viscosity than higher order dG schemes (because higher order polynomials produce more oscillations)</p></li>
+</ul>
+<p>We will now use the semi-implicit Karniadakis scheme.</p>
 </div>
 </div>
 
