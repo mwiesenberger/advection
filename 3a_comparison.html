@@ -296,22 +296,22 @@ Since our simulations operate at the limit of our available HPC resources simply
 <div class="section" id="a-simple-test-scenario">
 <h2>A simple test scenario<a class="headerlink" href="#a-simple-test-scenario" title="Permalink to this headline">¶</a></h2>
 <p>We consider the 2d incompressible Euler equations</p>
-<div class="amsmath math notranslate nohighlight" id="equation-65d0ec1a-5343-44c6-998c-60b36cd5b214">
-<span class="eqno">(1)<a class="headerlink" href="#equation-65d0ec1a-5343-44c6-998c-60b36cd5b214" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-4a6d7b9c-cd06-4f7e-b56c-3920d0dd94ce">
+<span class="eqno">(1)<a class="headerlink" href="#equation-4a6d7b9c-cd06-4f7e-b56c-3920d0dd94ce" title="Permalink to this equation">¶</a></span>\[\begin{align}
     \frac{\partial \omega}{\partial t} + \nabla\cdot({\vec v \omega}) = 0 \nonumber\\
 \omega = - \Delta\phi \quad v_x = - \phi_y \quad v_y = \phi_x
 \end{align}\]</div>
 <p>with vorticity <span class="math notranslate nohighlight">\(\omega\)</span> and stream-function <span class="math notranslate nohighlight">\(\phi\)</span>. The Euler equations have an infinite amount of conserved quantities
 among them the total vorticity <span class="math notranslate nohighlight">\(V\)</span>, the kinetic energy <span class="math notranslate nohighlight">\(E\)</span> and the enstrophy <span class="math notranslate nohighlight">\(\Omega\)</span></p>
-<div class="amsmath math notranslate nohighlight" id="equation-f8c7d4d2-f3ec-44eb-93bc-26e8f6848879">
-<span class="eqno">(2)<a class="headerlink" href="#equation-f8c7d4d2-f3ec-44eb-93bc-26e8f6848879" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-3b2a8336-23c2-4e41-99a5-4a641d630348">
+<span class="eqno">(2)<a class="headerlink" href="#equation-3b2a8336-23c2-4e41-99a5-4a641d630348" title="Permalink to this equation">¶</a></span>\[\begin{align}
      V := \int_D \omega \mathrm{d}A\quad
      E :=\frac{1}{2} \int_D \left( \nabla \phi\right)^2 \mathrm{d}A \quad
      \Omega_n:= \frac{1}{2} \int_D \omega^{2n }\mathrm{d}A
  \end{align}\]</div>
 <p>Often, these invariants are taken as a measure of quality of the integrator. We define a relative error in these quantities as</p>
-<div class="amsmath math notranslate nohighlight" id="equation-80470f12-2a24-436f-80da-08e5f279e2c3">
-<span class="eqno">(3)<a class="headerlink" href="#equation-80470f12-2a24-436f-80da-08e5f279e2c3" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-c36246ad-a587-49c7-adfd-99874227523d">
+<span class="eqno">(3)<a class="headerlink" href="#equation-c36246ad-a587-49c7-adfd-99874227523d" title="Permalink to this equation">¶</a></span>\[\begin{align}
     \varepsilon_q = \frac{q(T_{end}) - q(T_0)}{q(T_0)}
 \end{align}\]</div>
 </div>
@@ -338,8 +338,8 @@ among them the total vorticity <span class="math notranslate nohighlight">\(V\)<
 <div class="section" id="a-naive-approach">
 <h2>A naive approach<a class="headerlink" href="#a-naive-approach" title="Permalink to this headline">¶</a></h2>
 <p>The first approach to discretize is to simply use centered differences (or the dG analogue) for the flux</p>
-<div class="amsmath math notranslate nohighlight" id="equation-e90328a8-7ca9-49b3-b7a5-50fe80c21b17">
-<span class="eqno">(4)<a class="headerlink" href="#equation-e90328a8-7ca9-49b3-b7a5-50fe80c21b17" title="Permalink to this equation">¶</a></span>\[\begin{align} 
+<div class="amsmath math notranslate nohighlight" id="equation-4eb1eef3-46e0-47da-8353-03557db3b250">
+<span class="eqno">(4)<a class="headerlink" href="#equation-4eb1eef3-46e0-47da-8353-03557db3b250" title="Permalink to this equation">¶</a></span>\[\begin{align} 
 \frac{\partial}{\partial x} f \rightarrow \frac{f_{i+1}-f_{i-1}}{2h_x}
 \end{align}\]</div>
 <p>It is well known that the forward in time, centered in space method for solving
@@ -391,8 +391,8 @@ They also prove that upwind and centered fluxes do not dissipate energy.</p>
 <div class="section" id="upwind-scheme">
 <h2>Upwind scheme<a class="headerlink" href="#upwind-scheme" title="Permalink to this headline">¶</a></h2>
 <p>The idea of an upwind scheme is to use either a forward or a backward discretization of the flux <span class="math notranslate nohighlight">\(f=\omega v\)</span> depending on the sign of the velocity</p>
-<div class="amsmath math notranslate nohighlight" id="equation-f52274e8-5738-459d-9ed1-103dd354bd04">
-<span class="eqno">(5)<a class="headerlink" href="#equation-f52274e8-5738-459d-9ed1-103dd354bd04" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-db2312cb-0bb0-4a8b-a210-ae67e476ba6d">
+<span class="eqno">(5)<a class="headerlink" href="#equation-db2312cb-0bb0-4a8b-a210-ae67e476ba6d" title="Permalink to this equation">¶</a></span>\[\begin{align}
 \frac{\partial}{\partial x} f \rightarrow \begin{cases}
     \frac{f_{i} - f_{i-1}}{h} \text{ if } v \geq 0 \\
      \frac{f_{i+1}-f_i}{h}    \text{  if } v &lt; 0
@@ -429,8 +429,8 @@ two dG discretized functions is to interpolate both onto a  higher degree polyno
 <div class="section" id="upwind-advection">
 <h2>Upwind advection<a class="headerlink" href="#upwind-advection" title="Permalink to this headline">¶</a></h2>
 <p>As a last result we use the upwind dG scheme on the advection equation, which is possible with <span class="math notranslate nohighlight">\(\nabla \cdot \vec v = 0\)</span>:</p>
-<div class="amsmath math notranslate nohighlight" id="equation-ac54fb41-e81c-4e30-95e7-82c9f014b9ca">
-<span class="eqno">(6)<a class="headerlink" href="#equation-ac54fb41-e81c-4e30-95e7-82c9f014b9ca" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-280f6d56-9e56-4da0-b2a6-eaf4ff18842a">
+<span class="eqno">(6)<a class="headerlink" href="#equation-280f6d56-9e56-4da0-b2a6-eaf4ff18842a" title="Permalink to this equation">¶</a></span>\[\begin{align}
     \frac{\partial \omega}{\partial t} + \vec v\cdot\nabla \omega = 0 \\
     -\Delta\phi = \omega \quad v_x = -\phi_y \quad v_y = \phi_x
 \end{align}\]</div>
@@ -450,8 +450,8 @@ two dG discretized functions is to interpolate both onto a  higher degree polyno
 <h2>Modal filtering<a class="headerlink" href="#modal-filtering" title="Permalink to this headline">¶</a></h2>
 <p>In <a class="bibtex reference internal" href="#nodaldg" id="id6">[HW08]</a> an alternative to the projection method was suggested to stabilize dG methods. The modal filter can be thought of as a de-aliasing technique for dG methods and is thought to be an alternative to artificial diffusion techniques.
 The technique consists in applying the filter <span class="math notranslate nohighlight">\(f(\eta)\)</span> to each mode <span class="math notranslate nohighlight">\(\eta\)</span> after every timestep</p>
-<div class="amsmath math notranslate nohighlight" id="equation-8dc7f3e1-510a-4fe1-824a-710d69d1380d">
-<span class="eqno">(7)<a class="headerlink" href="#equation-8dc7f3e1-510a-4fe1-824a-710d69d1380d" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-29c6c9e9-2b8e-45af-b2f6-ffff34b872ac">
+<span class="eqno">(7)<a class="headerlink" href="#equation-29c6c9e9-2b8e-45af-b2f6-ffff34b872ac" title="Permalink to this equation">¶</a></span>\[\begin{align}
 \omega_\eta^{n+1} = f(\eta) \omega_\eta^n
 \end{align}\]</div>
 <p>We experiment with the exponential filter shown in the next graph</p>
@@ -488,8 +488,8 @@ The technique consists in applying the filter <span class="math notranslate nohi
 <div class="section" id="viscosity-and-hyperviscosity">
 <h2>Viscosity and hyperviscosity<a class="headerlink" href="#viscosity-and-hyperviscosity" title="Permalink to this headline">¶</a></h2>
 <p>In order to make the centered and Arakawa discretization stable, it is common to add artificial viscosity terms to the equations</p>
-<div class="amsmath math notranslate nohighlight" id="equation-ba563a6a-380e-4e64-a0ae-ec6322193b08">
-<span class="eqno">(8)<a class="headerlink" href="#equation-ba563a6a-380e-4e64-a0ae-ec6322193b08" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-de3579c6-f468-494c-9c16-349f324ed320">
+<span class="eqno">(8)<a class="headerlink" href="#equation-de3579c6-f468-494c-9c16-349f324ed320" title="Permalink to this equation">¶</a></span>\[\begin{align}
  \frac{\partial}{\partial t} + \nabla \cdot ( \omega \vec v) = - (-\nu \Delta)^s \omega
  \end{align}\]</div>
 <p>where <span class="math notranslate nohighlight">\(s=1,2,...\)</span> is the order. This technique clearly destroys the exact energy
@@ -510,9 +510,6 @@ We now want to show that</p>
 <img alt="_images/3a_comparison_29_0.png" src="_images/3a_comparison_29_0.png" />
 <img alt="_images/3a_comparison_29_1.png" src="_images/3a_comparison_29_1.png" />
 <img alt="_images/3a_comparison_29_2.png" src="_images/3a_comparison_29_2.png" />
-<img alt="_images/3a_comparison_29_3.png" src="_images/3a_comparison_29_3.png" />
-<img alt="_images/3a_comparison_29_4.png" src="_images/3a_comparison_29_4.png" />
-<img alt="_images/3a_comparison_29_5.png" src="_images/3a_comparison_29_5.png" />
 </div>
 </div>
 <div class="cell tag_remove-input docutils container">
@@ -520,9 +517,6 @@ We now want to show that</p>
 <img alt="_images/3a_comparison_30_0.png" src="_images/3a_comparison_30_0.png" />
 <img alt="_images/3a_comparison_30_1.png" src="_images/3a_comparison_30_1.png" />
 <img alt="_images/3a_comparison_30_2.png" src="_images/3a_comparison_30_2.png" />
-<img alt="_images/3a_comparison_30_3.png" src="_images/3a_comparison_30_3.png" />
-<img alt="_images/3a_comparison_30_4.png" src="_images/3a_comparison_30_4.png" />
-<img alt="_images/3a_comparison_30_5.png" src="_images/3a_comparison_30_5.png" />
 </div>
 </div>
 <ul class="simple">
@@ -536,9 +530,6 @@ We now want to show that</p>
 <img alt="_images/3a_comparison_32_0.png" src="_images/3a_comparison_32_0.png" />
 <img alt="_images/3a_comparison_32_1.png" src="_images/3a_comparison_32_1.png" />
 <img alt="_images/3a_comparison_32_2.png" src="_images/3a_comparison_32_2.png" />
-<img alt="_images/3a_comparison_32_3.png" src="_images/3a_comparison_32_3.png" />
-<img alt="_images/3a_comparison_32_4.png" src="_images/3a_comparison_32_4.png" />
-<img alt="_images/3a_comparison_32_5.png" src="_images/3a_comparison_32_5.png" />
 </div>
 </div>
 <div class="cell tag_remove-input docutils container">
@@ -546,9 +537,6 @@ We now want to show that</p>
 <img alt="_images/3a_comparison_33_0.png" src="_images/3a_comparison_33_0.png" />
 <img alt="_images/3a_comparison_33_1.png" src="_images/3a_comparison_33_1.png" />
 <img alt="_images/3a_comparison_33_2.png" src="_images/3a_comparison_33_2.png" />
-<img alt="_images/3a_comparison_33_3.png" src="_images/3a_comparison_33_3.png" />
-<img alt="_images/3a_comparison_33_4.png" src="_images/3a_comparison_33_4.png" />
-<img alt="_images/3a_comparison_33_5.png" src="_images/3a_comparison_33_5.png" />
 </div>
 </div>
 <ul class="simple">
