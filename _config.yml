@@ -1,7 +1,7 @@
 # Book settings
 # Learn more at https://jupyterbook.org/customize/config.html
 
-title: A Study of advection schemes
+title: Discontinuous Galerkin methods
 author: Matthias Wiesenberger
 logo: logo.jpg
 
