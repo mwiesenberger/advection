@@ -1,0 +1,621 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Various advection schemes &#8212; Discontinuous Galerkin methods</title>
+    
+  <link rel="stylesheet" href="_static/css/index.f658d18f9b420779cfdf24aa0a7e2d77.css">
+
+    
+  <link rel="stylesheet"
+    href="_static/vendor/fontawesome/5.13.0/css/all.min.css">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="_static/vendor/fontawesome/5.13.0/webfonts/fa-solid-900.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="_static/vendor/fontawesome/5.13.0/webfonts/fa-brands-400.woff2">
+
+    
+      
+  <link rel="stylesheet"
+    href="_static/vendor/open-sans_all/1.44.1/index.css">
+  <link rel="stylesheet"
+    href="_static/vendor/lato_latin-ext/1.44.1/index.css">
+
+    
+    <link rel="stylesheet" href="_static/sphinx-book-theme.40e2e510f6b7d1648584402491bb10fe.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="_static/togglebutton.css" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="_static/mystnb.css" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-thebe.css" />
+    <link rel="stylesheet" type="text/css" href="_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    
+  <link rel="preload" as="script" href="_static/js/index.d3f166471bb80abb5163.js">
+
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script src="_static/togglebutton.js"></script>
+    <script src="_static/clipboard.min.js"></script>
+    <script src="_static/copybutton.js"></script>
+    <script >var togglebuttonSelector = '.toggle, .admonition.dropdown, .tag_hide_input div.cell_input, .tag_hide-input div.cell_input, .tag_hide_output div.cell_output, .tag_hide-output div.cell_output, .tag_hide_cell.cell, .tag_hide-cell.cell';</script>
+    <script src="_static/sphinx-book-theme.d31b09fe5c1d09cb49b26a786de4a05d.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["\\(", "\\)"]], "displayMath": [["\\[", "\\]"]], "processRefs": false, "processEnvironments": false}})</script>
+    <script async="async" src="https://unpkg.com/thebelab@latest/lib/index.js"></script>
+    <script >
+        const thebe_selector = ".thebe"
+        const thebe_selector_input = "pre"
+        const thebe_selector_output = ".output"
+    </script>
+    <script async="async" src="_static/sphinx-thebe.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Convergence of upwind scheme" href="convergence.html" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="docsearch:language" content="en" />
+
+
+
+  </head>
+  <body data-spy="scroll" data-target="#bd-toc-nav" data-offset="80">
+    
+
+    <div class="container-xl">
+      <div class="row">
+          
+<div class="col-12 col-md-3 bd-sidebar site-navigation show" id="site-navigation">
+    
+        <div class="navbar-brand-box">
+<a class="navbar-brand text-wrap" href="index.html">
+  
+  <img src="_static/logo.jpg" class="logo" alt="logo">
+  
+  
+  <h1 class="site-logo" id="site-title">Discontinuous Galerkin methods</h1>
+  
+</a>
+</div><form class="bd-search d-flex align-items-center" action="search.html" method="get">
+  <i class="icon fas fa-search"></i>
+  <input type="search" class="form-control" name="q" id="search-input" placeholder="Search this book..." aria-label="Search this book..." autocomplete="off" >
+</form>
+<nav class="bd-links" id="bd-docs-nav" aria-label="Main navigation">
+    <ul class="nav sidenav_l1">
+ <li class="toctree-l1 current active">
+  <a class="reference internal" href="#">
+   Various advection schemes
+  </a>
+ </li>
+</ul>
+<ul class="nav sidenav_l1">
+ <li class="toctree-l1">
+  <a class="reference internal" href="convergence.html">
+   Convergence of upwind scheme
+  </a>
+ </li>
+</ul>
+
+</nav> <!-- To handle the deprecated key -->
+
+<div class="navbar_extra_footer">
+  Powered by <a href="https://jupyterbook.org">Jupyter Book</a>
+</div>
+
+</div>
+
+
+          
+
+
+          
+<main class="col py-md-3 pl-md-4 bd-content overflow-auto" role="main">
+    
+    <div class="row topbar fixed-top container-xl">
+    <div class="col-12 col-md-3 bd-topbar-whitespace site-navigation show">
+    </div>
+    <div class="col pl-2 topbar-main">
+        
+        <button id="navbar-toggler" class="navbar-toggler ml-0" type="button" data-toggle="collapse"
+            data-toggle="tooltip" data-placement="bottom" data-target=".site-navigation" aria-controls="navbar-menu"
+            aria-expanded="true" aria-label="Toggle navigation" aria-controls="site-navigation"
+            title="Toggle navigation" data-toggle="tooltip" data-placement="left">
+            <i class="fas fa-bars"></i>
+            <i class="fas fa-arrow-left"></i>
+            <i class="fas fa-arrow-up"></i>
+        </button>
+        
+        
+<div class="dropdown-buttons-trigger">
+    <button id="dropdown-buttons-trigger" class="btn btn-secondary topbarbtn" aria-label="Download this page"><i
+            class="fas fa-download"></i></button>
+
+    <div class="dropdown-buttons">
+        <!-- ipynb file if we had a myst markdown file -->
+        
+        <!-- Download raw file -->
+        <a class="dropdown-buttons" href="_sources/comparison.ipynb"><button type="button"
+                class="btn btn-secondary topbarbtn" title="Download source file" data-toggle="tooltip"
+                data-placement="left">.ipynb</button></a>
+        <!-- Download PDF via print -->
+        <button type="button" id="download-print" class="btn btn-secondary topbarbtn" title="Print to PDF"
+            onClick="window.print()" data-toggle="tooltip" data-placement="left">.pdf</button>
+    </div>
+</div>
+
+        <!-- Source interaction buttons -->
+
+<div class="dropdown-buttons-trigger">
+    <button id="dropdown-buttons-trigger" class="btn btn-secondary topbarbtn"
+        aria-label="Connect with source repository"><i class="fab fa-github"></i></button>
+    <div class="dropdown-buttons sourcebuttons">
+        <a class="repository-button"
+            href="https://github.com/mwiesenberger/advection"><button type="button" class="btn btn-secondary topbarbtn"
+                data-toggle="tooltip" data-placement="left" title="Source repository"><i
+                    class="fab fa-github"></i>repository</button></a>
+        <a class="issues-button"
+            href="https://github.com/mwiesenberger/advection/issues/new?title=Issue%20on%20page%20%2Fcomparison.html&body=Your%20issue%20content%20here."><button
+                type="button" class="btn btn-secondary topbarbtn" data-toggle="tooltip" data-placement="left"
+                title="Open an issue"><i class="fas fa-lightbulb"></i>open issue</button></a>
+        
+    </div>
+</div>
+
+
+        <!-- Full screen (wrap in <a> to have style consistency -->
+        <a class="full-screen-button"><button type="button" class="btn btn-secondary topbarbtn" data-toggle="tooltip"
+                data-placement="bottom" onclick="toggleFullScreen()" aria-label="Fullscreen mode"
+                title="Fullscreen mode"><i
+                    class="fas fa-expand"></i></button></a>
+
+        <!-- Launch buttons -->
+
+<div class="dropdown-buttons-trigger">
+    <button id="dropdown-buttons-trigger" class="btn btn-secondary topbarbtn"
+        aria-label="Launch interactive content"><i class="fas fa-rocket"></i></button>
+    <div class="dropdown-buttons">
+        
+        <a class="binder-button" href="https://mybinder.org/v2/gh/mwiesenberger/advection/master?urlpath=tree/docs/comparison.ipynb"><button type="button"
+                class="btn btn-secondary topbarbtn" title="Launch Binder" data-toggle="tooltip"
+                data-placement="left"><img class="binder-button-logo"
+                    src="_static/images/logo_binder.svg"
+                    alt="Interact on binder">Binder</button></a>
+        
+        
+        
+        
+    </div>
+</div>
+
+    </div>
+
+    <!-- Table of contents -->
+    <div class="d-none d-md-block col-md-2 bd-toc show">
+        
+        <div class="tocsection onthispage pt-5 pb-3">
+            <i class="fas fa-list"></i> Contents
+        </div>
+        <nav id="bd-toc-nav">
+            <ul class="nav section-nav flex-column">
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#motivation">
+   Motivation
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#a-simple-test-scenario">
+   A simple test scenario
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#the-double-shear-layer-problem">
+   The double shear layer problem
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#a-naive-approach">
+   A naive approach
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#arakawa">
+   Arakawa
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#upwind-scheme">
+   Upwind scheme
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#correct-multiplication-of-dg-polynomials">
+   Correct multiplication of dG polynomials
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#upwind-advection">
+   Upwind advection
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#modal-filtering">
+   Modal filtering
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#modal-filter-on-the-arakawa-scheme">
+   Modal filter on the Arakawa scheme
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#viscosity-and-hyperviscosity">
+   Viscosity and hyperviscosity
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#order-1-artificial-viscosity">
+   Order 1 artificial Viscosity
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#order-2-artificial-viscosity">
+   Order 2 artificial viscosity
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#conclusions">
+   Conclusions
+  </a>
+ </li>
+</ul>
+
+        </nav>
+        
+    </div>
+</div>
+    <div id="main-content" class="row">
+        <div class="col-12 col-md-9 pl-md-3 pr-md-0">
+        
+              <div>
+                
+  <div class="section" id="various-advection-schemes">
+<h1>Various advection schemes<a class="headerlink" href="#various-advection-schemes" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="motivation">
+<h2>Motivation<a class="headerlink" href="#motivation" title="Permalink to this headline">¶</a></h2>
+<p>The motivation for this study stems from the observation that our 3d turbulence simulations in Feltor seem to</p>
+<ul class="simple">
+<li><p>require a significant higher resolution  and</p></li>
+<li><p>seem to generate significantly smaller scales</p></li>
+</ul>
+<p>than finite Difference simulations of the same region like Grillix or Tokam3X.
+Since our simulations operate at the limit of our available HPC resources simply increasing the resolution further is not an option. This results in the situation where Feltor cannot simulate the same regions of the tokamak that other frameworks seem to be able to.</p>
+<p>Currently, there are two hypotheses</p>
+<ul class="simple">
+<li><p>the gyro-fluid model in use physically produces smaller scales than the drift-fluid models</p></li>
+<li><p>the required high resolution is a fundamental problem of the discontinuous Galerkin discretization</p></li>
+</ul>
+<p>In this report we want to test the second hypothesis in more detail. In order to do this we consider a simple test scenario as a testbed for a variety of dG and FD discretization and filter techniques.</p>
+</div>
+<div class="section" id="a-simple-test-scenario">
+<h2>A simple test scenario<a class="headerlink" href="#a-simple-test-scenario" title="Permalink to this headline">¶</a></h2>
+<p>We consider the 2d incompressible Euler equations</p>
+<div class="amsmath math notranslate nohighlight" id="equation-79f104b6-8245-40d8-a5fa-05471397b1df">
+<span class="eqno">(1)<a class="headerlink" href="#equation-79f104b6-8245-40d8-a5fa-05471397b1df" title="Permalink to this equation">¶</a></span>\[\begin{align}
+    \frac{\partial \omega}{\partial t} + \nabla\cdot({\vec v \omega}) = 0 \nonumber\\
+\omega = - \Delta\phi \quad v_x = - \phi_y \quad v_y = \phi_x
+\end{align}\]</div>
+<p>with vorticity <span class="math notranslate nohighlight">\(\omega\)</span> and stream-function <span class="math notranslate nohighlight">\(\phi\)</span>. The Euler equations have an infinite amount of conserved quantities
+among them the total vorticity <span class="math notranslate nohighlight">\(V\)</span>, the kinetic energy <span class="math notranslate nohighlight">\(E\)</span> and the enstrophy <span class="math notranslate nohighlight">\(\Omega\)</span></p>
+<div class="amsmath math notranslate nohighlight" id="equation-c3e1bfa4-d577-43b0-86ef-7803c3887edc">
+<span class="eqno">(2)<a class="headerlink" href="#equation-c3e1bfa4-d577-43b0-86ef-7803c3887edc" title="Permalink to this equation">¶</a></span>\[\begin{align}
+     V := \int_D \omega \mathrm{d}A\quad
+     E :=\frac{1}{2} \int_D \left( \nabla \phi\right)^2 \mathrm{d}A \quad
+     \Omega_n:= \frac{1}{2} \int_D \omega^{2n }\mathrm{d}A
+ \end{align}\]</div>
+<p>Often, these invariants are taken as a measure of quality of the integrator. We define a relative error in these quantities as</p>
+<div class="amsmath math notranslate nohighlight" id="equation-74933f5b-9c14-4222-990d-450024b9eef9">
+<span class="eqno">(3)<a class="headerlink" href="#equation-74933f5b-9c14-4222-990d-450024b9eef9" title="Permalink to this equation">¶</a></span>\[\begin{align}
+    \varepsilon_q = \frac{q(T_{end}) - q(T_0)}{q(T_0)}
+\end{align}\]</div>
+</div>
+<div class="section" id="the-double-shear-layer-problem">
+<h2>The double shear layer problem<a class="headerlink" href="#the-double-shear-layer-problem" title="Permalink to this headline">¶</a></h2>
+<p>We initialize a double shear layer and pose boundary conditions: <strong>periodic in x, Dirichlet in y</strong></p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_9_0.png" src="_images/comparison_9_0.png" />
+</div>
+</div>
+<p>We will then integrate the solution from <span class="math notranslate nohighlight">\(t=0\)</span> to <span class="math notranslate nohighlight">\(t=10\)</span> using various methods. The expected result is</p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_11_0.png" src="_images/comparison_11_0.png" />
+</div>
+</div>
+<p>The solution quickly rolls up and generates small fine vorticity lines that are more and more difficult to resolve by the numerical scheme. In the following we test various schemes to solve this equation and</p>
+<ul class="simple">
+<li><p>intentionally under-resolve the simulation with <strong>~140 points in each direction</strong> (in the sense that most schemes will fail)</p></li>
+<li><p>keep the total <strong>number of points constant when changing the order</strong> of the method. This in particular means that for dG schemes we half the number of cells when we double the number of polynomial coefficients</p></li>
+</ul>
+</div>
+<div class="section" id="a-naive-approach">
+<h2>A naive approach<a class="headerlink" href="#a-naive-approach" title="Permalink to this headline">¶</a></h2>
+<p>The first approach to discretize is to simply use centered differences (or the dG analogue) for the flux</p>
+<div class="amsmath math notranslate nohighlight" id="equation-6aa04434-8bf1-4be6-a73d-48960f26b6ac">
+<span class="eqno">(4)<a class="headerlink" href="#equation-6aa04434-8bf1-4be6-a73d-48960f26b6ac" title="Permalink to this equation">¶</a></span>\[\begin{align} 
+\frac{\partial}{\partial x} f \rightarrow \frac{f_{i+1}-f_{i-1}}{2h_x}
+\end{align}\]</div>
+<p>It is well known that the forward in time, centered in space method for solving
+hyperbolic systems is <strong>unconditionally unstable</strong> <a class="bibtex reference internal" href="#leveque" id="id1">[LeV02]</a>.
+Reference <a class="bibtex reference internal" href="#liu2000" id="id2">[LS00]</a> reports that the centered flux does not have any numerical
+diffusion while the upwind flux does.
+They also prove that upwind and centered fluxes do not dissipate energy.</p>
+<p id="bibtex-bibliography-comparison-0"><dl class="citation">
+<dt class="bibtex label" id="einkemmer2014"><span class="brackets"><a class="fn-backref" href="#id3">EW14</a></span></dt>
+<dd><p>L. Einkemmer and M. Wiesenberger. A conservative discontinuous galerkin scheme for the 2d incompressible navier–stokes equations. <em>Comput. Phys. Commun.</em>, 185(11):2865–2873, 2014. <a class="reference external" href="https://doi.org/10.1016/j.cpc.2014.07.007">doi:10.1016/j.cpc.2014.07.007</a>.</p>
+</dd>
+<dt class="bibtex label" id="nodaldg"><span class="brackets">HW08</span><span class="fn-backref">(<a href="#id4">1</a>,<a href="#id5">2</a>,<a href="#id6">3</a>)</span></dt>
+<dd><p>J.S. Hesthaven and T. Warburton. <em>Nodal discontinuous Galerkin methods: algorithms, analysis, and applications</em>. Texts in Applied Mathematics. Springer Media, 2008.</p>
+</dd>
+<dt class="bibtex label" id="leveque"><span class="brackets"><a class="fn-backref" href="#id1">LeV02</a></span></dt>
+<dd><p>R.J. LeVeque. <em>Finite Volume Methods for Hyperbolic Problems</em>. Cambridge Texts in Applied Mathematics. Cambridge University Press, 2002.</p>
+</dd>
+<dt class="bibtex label" id="liu2000"><span class="brackets"><a class="fn-backref" href="#id2">LS00</a></span></dt>
+<dd><p>J.G. Liu and C.W. Shu. A high-order discontinuous galerkin method for 2d incompressible flows. <em>J. Comput. Phys.</em>, 160:557–596, 2000. <a class="reference external" href="https://doi.org/10.1006/jcph.2000.6475">doi:10.1006/jcph.2000.6475</a>.</p>
+</dd>
+</dl>
+</p>
+<blockquote>
+<div><p>We run all simulations on a GeForce GTX 1660-Ti</p>
+</div></blockquote>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_13_0.png" src="_images/comparison_13_0.png" />
+<img alt="_images/comparison_13_1.png" src="_images/comparison_13_1.png" />
+</div>
+</div>
+<p>We observe that</p>
+<ul class="simple">
+<li><p>both the FD and the dG scheme of order 5 produce a lot of oscillations</p></li>
+<li><p>even though the number of spatial points is the same (~140) the dG scheme has to use a 5 times smaller time step</p></li>
+</ul>
+</div>
+<div class="section" id="arakawa">
+<h2>Arakawa<a class="headerlink" href="#arakawa" title="Permalink to this headline">¶</a></h2>
+<p>The Arakawa scheme was generalized for dG methods in <a class="bibtex reference internal" href="#einkemmer2014" id="id3">[EW14]</a> and is a method that conserves vorticity, energy and enstrophy exactly. Just as for the centered differences it is well-known that the scheme produces oscillations without a diffusive term.</p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_15_0.png" src="_images/comparison_15_0.png" />
+<img alt="_images/comparison_15_1.png" src="_images/comparison_15_1.png" />
+</div>
+</div>
+<ul class="simple">
+<li><p>The Arakawa scheme without regularization is indeed always unstable (also for projection method described later)</p></li>
+<li><p>Note that the higher order simulation takes 5-6 times longer to complete</p></li>
+</ul>
+</div>
+<div class="section" id="upwind-scheme">
+<h2>Upwind scheme<a class="headerlink" href="#upwind-scheme" title="Permalink to this headline">¶</a></h2>
+<p>The idea of an upwind scheme is to use either a forward or a backward discretization of the flux <span class="math notranslate nohighlight">\(f=\omega v\)</span> depending on the sign of the velocity</p>
+<div class="amsmath math notranslate nohighlight" id="equation-82d13686-0bdc-42f7-a788-5fd4d110b124">
+<span class="eqno">(5)<a class="headerlink" href="#equation-82d13686-0bdc-42f7-a788-5fd4d110b124" title="Permalink to this equation">¶</a></span>\[\begin{align}
+\frac{\partial}{\partial x} f \rightarrow \begin{cases}
+    \frac{f_{i} - f_{i-1}}{h} \text{ if } v \geq 0 \\
+     \frac{f_{i+1}-f_i}{h}    \text{  if } v &lt; 0
+    \end{cases}
+\end{align}\]</div>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_17_0.png" src="_images/comparison_17_0.png" />
+<img alt="_images/comparison_17_1.png" src="_images/comparison_17_1.png" />
+<img alt="_images/comparison_17_2.png" src="_images/comparison_17_2.png" />
+</div>
+</div>
+<ul class="simple">
+<li><p>The upwind scheme of first order introduces a lot of numerical diffusion,</p></li>
+<li><p>the higher order dG schemes with pointwise multiplication seem to be unstable at stagnation points</p></li>
+</ul>
+</div>
+<div class="section" id="correct-multiplication-of-dg-polynomials">
+<h2>Correct multiplication of dG polynomials<a class="headerlink" href="#correct-multiplication-of-dg-polynomials" title="Permalink to this headline">¶</a></h2>
+<p>In the computation of the flux <span class="math notranslate nohighlight">\(n v\)</span> the approach that we used above (termed <strong>pointwise</strong>) was to simply compute the pointwise multiplication of the nodal discretization <a class="bibtex reference internal" href="#nodaldg" id="id4">[HW08]</a>. However, the correct approach when multiplying
+two dG discretized functions is to interpolate both onto a  higher degree polynomial (of degree <span class="math notranslate nohighlight">\(2n\)</span>) and then projecting the result back unto the lower degree polynomial <span class="math notranslate nohighlight">\(n\)</span>). We call this the <strong>projection</strong> method <a class="bibtex reference internal" href="#nodaldg" id="id5">[HW08]</a>.</p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_19_0.png" src="_images/comparison_19_0.png" />
+<img alt="_images/comparison_19_1.png" src="_images/comparison_19_1.png" />
+</div>
+</div>
+<ul class="simple">
+<li><p>Only the upwind scheme with correct multiplication and projection of polynomials seems to work reliably without regularization. Only small oscillations are visible.</p></li>
+<li><p>The higher order scheme displays smaller scales than the 3rd order scheme</p></li>
+<li><p>All orders dissipate energy and enstrophy (10%!) but the <strong>higher order scheme dissipates less</strong> (but has more oscillations)</p></li>
+</ul>
+</div>
+<div class="section" id="upwind-advection">
+<h2>Upwind advection<a class="headerlink" href="#upwind-advection" title="Permalink to this headline">¶</a></h2>
+<p>As a last result we use the upwind dG scheme on the advection equation, which is possible with <span class="math notranslate nohighlight">\(\nabla \cdot \vec v = 0\)</span>:</p>
+<div class="amsmath math notranslate nohighlight" id="equation-339b3487-b6a1-4889-9da5-8a2addf774b0">
+<span class="eqno">(6)<a class="headerlink" href="#equation-339b3487-b6a1-4889-9da5-8a2addf774b0" title="Permalink to this equation">¶</a></span>\[\begin{align}
+    \frac{\partial \omega}{\partial t} + \vec v\cdot\nabla \omega = 0 \\
+    -\Delta\phi = \omega \quad v_x = -\phi_y \quad v_y = \phi_x
+\end{align}\]</div>
+<p>instead of the conservation equation:</p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_21_0.png" src="_images/comparison_21_0.png" />
+<img alt="_images/comparison_21_1.png" src="_images/comparison_21_1.png" />
+</div>
+</div>
+<ul class="simple">
+<li><p>the upwind advection scheme with pointwise multiplication looks almost exactly the same as the conservative upwind scheme with projection method</p></li>
+<li><p>we do not show the plots for the upwind-advection method with projection multiplication since the plots and numbers are almost identical (only the energy and vorticity conservation differ slightly)</p></li>
+</ul>
+</div>
+<div class="section" id="modal-filtering">
+<h2>Modal filtering<a class="headerlink" href="#modal-filtering" title="Permalink to this headline">¶</a></h2>
+<p>In <a class="bibtex reference internal" href="#nodaldg" id="id6">[HW08]</a> an alternative to the projection method was suggested to stabilize dG methods. The modal filter can be thought of as a de-aliasing technique for dG methods and is thought to be an alternative to artificial diffusion techniques.
+The technique consists in applying the filter <span class="math notranslate nohighlight">\(f(\eta)\)</span> to each mode <span class="math notranslate nohighlight">\(\eta\)</span> after every timestep</p>
+<div class="amsmath math notranslate nohighlight" id="equation-606e1e6a-1b02-4220-94b7-0ec4284f2611">
+<span class="eqno">(7)<a class="headerlink" href="#equation-606e1e6a-1b02-4220-94b7-0ec4284f2611" title="Permalink to this equation">¶</a></span>\[\begin{align}
+\omega_\eta^{n+1} = f(\eta) \omega_\eta^n
+\end{align}\]</div>
+<p>We experiment with the exponential filter shown in the next graph</p>
+<p><img alt="Filter function" src="_images/filter.png" /></p>
+<p>First, let us try to apply the filter to the upwind scheme with pointwise multiplication (as was originally suggested)</p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_24_0.png" src="_images/comparison_24_0.png" />
+<img alt="_images/comparison_24_1.png" src="_images/comparison_24_1.png" />
+</div>
+</div>
+<ul class="simple">
+<li><p>The modal Filter introduces numerical diffusion but seems to have (slight) troubles at the stagnation points</p></li>
+<li><p>also true for the projection method</p></li>
+<li><p>in a way the modal filter is a projection filter (projecting out high frequencies) and should thus be equivalent to a projection method of lower order and the same number of cells</p></li>
+</ul>
+</div>
+<div class="section" id="modal-filter-on-the-arakawa-scheme">
+<h2>Modal filter on the Arakawa scheme<a class="headerlink" href="#modal-filter-on-the-arakawa-scheme" title="Permalink to this headline">¶</a></h2>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_26_0.png" src="_images/comparison_26_0.png" />
+<img alt="_images/comparison_26_1.png" src="_images/comparison_26_1.png" />
+<img alt="_images/comparison_26_2.png" src="_images/comparison_26_2.png" />
+</div>
+</div>
+<ul class="simple">
+<li><p>The modal filter with <span class="math notranslate nohighlight">\(\eta_c=0.5\)</span>, <span class="math notranslate nohighlight">\(s=8\)</span> and <span class="math notranslate nohighlight">\(\alpha=36\)</span> improves the oscillations in the Arakawa scheme but does not entirely remove them</p></li>
+<li><p>The modal filter with <span class="math notranslate nohighlight">\(\eta_c=0.0\)</span>, <span class="math notranslate nohighlight">\(s=8\)</span> and <span class="math notranslate nohighlight">\(\alpha=36\)</span> further dampens the oscillations but overdampens the vortex structure while still having trouble at the symmetry points</p></li>
+<li><p>This situation is the same for the projection and the centered methods</p></li>
+</ul>
+<p><strong>The modal filter is unable to make the unstable techniques stable and is somewhat similar to a projection method of lower order</strong> -&gt; maybe look more into equivalence of projection and modal filtering? Especially for order 3 this seems evident</p>
+</div>
+<div class="section" id="viscosity-and-hyperviscosity">
+<h2>Viscosity and hyperviscosity<a class="headerlink" href="#viscosity-and-hyperviscosity" title="Permalink to this headline">¶</a></h2>
+<p>In order to make the centered and Arakawa discretization stable, it is common to add artificial viscosity terms to the equations</p>
+<div class="amsmath math notranslate nohighlight" id="equation-7be1800c-76b6-4b47-910b-c6378c362378">
+<span class="eqno">(8)<a class="headerlink" href="#equation-7be1800c-76b6-4b47-910b-c6378c362378" title="Permalink to this equation">¶</a></span>\[\begin{align}
+ \frac{\partial}{\partial t} + \nabla \cdot ( \omega \vec v) = - (-\nu \Delta)^s \omega
+ \end{align}\]</div>
+<p>where <span class="math notranslate nohighlight">\(s=1,2,...\)</span> is the order. This technique clearly destroys the exact energy
+and enstrophy conservation of the original system.
+Since Fourier modes are Eigenfunctions of the Laplace operator the artificial viscosity can be seen as a low pass filters of order <span class="math notranslate nohighlight">\(s\)</span> for spectral schemes. In contrast to a modal dG filter however, the spectral filter applies to the entire box as a whole and not just to individual cells.
+We now want to show that</p>
+<ul class="simple">
+<li><p>the schemes that produce less oscillations also need less viscosity</p></li>
+<li><p>in particular the order 1 arakawa scheme needs less viscosity than higher order dG schemes (because higher order polynomials produce more oscillations)</p></li>
+</ul>
+<p>We will now use a semi-implicit Multistep scheme known as “IMEX-BDF-3-3” scheme in the numerical community and commonly referred to as “Karniadakis” in the plasma physics community. This allows to solve the diffusion as an implicit contribution and the advection explicitly.</p>
+</div>
+<div class="section" id="order-1-artificial-viscosity">
+<h2>Order 1 artificial Viscosity<a class="headerlink" href="#order-1-artificial-viscosity" title="Permalink to this headline">¶</a></h2>
+<p><em>(in order to compare the various plots it is recommended to open the book twice in two different browser windows)</em></p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_29_0.png" src="_images/comparison_29_0.png" />
+<img alt="_images/comparison_29_1.png" src="_images/comparison_29_1.png" />
+<img alt="_images/comparison_29_2.png" src="_images/comparison_29_2.png" />
+</div>
+</div>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_30_0.png" src="_images/comparison_30_0.png" />
+<img alt="_images/comparison_30_1.png" src="_images/comparison_30_1.png" />
+<img alt="_images/comparison_30_2.png" src="_images/comparison_30_2.png" />
+</div>
+</div>
+<ul class="simple">
+<li><p>for same <span class="math notranslate nohighlight">\(\nu\)</span> the higher order scheme is more dissipative than the lower order scheme</p></li>
+</ul>
+</div>
+<div class="section" id="order-2-artificial-viscosity">
+<h2>Order 2 artificial viscosity<a class="headerlink" href="#order-2-artificial-viscosity" title="Permalink to this headline">¶</a></h2>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_32_0.png" src="_images/comparison_32_0.png" />
+<img alt="_images/comparison_32_1.png" src="_images/comparison_32_1.png" />
+<img alt="_images/comparison_32_2.png" src="_images/comparison_32_2.png" />
+</div>
+</div>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/comparison_33_0.png" src="_images/comparison_33_0.png" />
+<img alt="_images/comparison_33_1.png" src="_images/comparison_33_1.png" />
+<img alt="_images/comparison_33_2.png" src="_images/comparison_33_2.png" />
+</div>
+</div>
+<ul class="simple">
+<li><p>Again, the higher order dG scheme dissipatess slightly more than the FD scheme for the same <span class="math notranslate nohighlight">\(\nu\)</span> parameter</p></li>
+<li><p>the <span class="math notranslate nohighlight">\(n=3\)</span> hyperviscous with <span class="math notranslate nohighlight">\(\nu = 5\cdot 10^{-4}\)</span> looks almost exactly like the upwind discretization with projection method (<em>open 2 browser windows side by side to see this</em>) apart from a “wiggle” in the upwind method. It also has almost identical conservation properties</p></li>
+</ul>
+</div>
+<div class="section" id="conclusions">
+<h2>Conclusions<a class="headerlink" href="#conclusions" title="Permalink to this headline">¶</a></h2>
+<p>The higher amount of dissipation is likely the result of the larger amount of oscillations the higher order dG scheme produces.</p>
+<p>This shows that the upwind methods incorporates numerical diffusion naturally in the scheme. What the artificial diffusion does is to add numerical dissipation to a scheme (Arakawa) that does not inherently possess one. <strong>The upwind scheme however does not need to tune free parameters (<span class="math notranslate nohighlight">\(s\)</span> and <span class="math notranslate nohighlight">\(\nu\)</span>) to work properly</strong>. Furthermore, it does not need to invert the implicit part of the timestepper and is therefore potentially faster than the artificial viscosity regularization.</p>
+<div class="toctree-wrapper compound">
+</div>
+</div>
+</div>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            kernelName: "python3",
+            path: "./."
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+              </div>
+              
+        </div>
+    </div>
+    
+    
+    <div class='prev-next-bottom'>
+        
+    <a class='right-next' id="next-link" href="convergence.html" title="next page">Convergence of upwind scheme</a>
+
+    </div>
+    <footer class="footer mt-5 mt-md-0">
+    <div class="container">
+      <p>
+        
+          By Matthias Wiesenberger<br/>
+        
+            &copy; Copyright 2020.<br/>
+      </p>
+    </div>
+  </footer>
+</main>
+
+
+      </div>
+    </div>
+
+    
+  <script src="_static/js/index.d3f166471bb80abb5163.js"></script>
+
+
+    
+  </body>
+</html>
