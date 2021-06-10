@@ -255,7 +255,8 @@ struct NavierStokesExplicit
                 yp[0][i] = -( qST[k] - qST[k-1])/hx;
                 //
                 yp[1][i] = -(uh[k+1]*q[k+1]-uh[k]*q[k])/2./hx;
-                yp[1][i]+= m_nu_u*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
+                double nST = (nn[k] + nn[k+1])/2.;
+                yp[1][i]+= m_nu_u/nST*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
             }
             if( m_variant == "explicit" || m_variant == "slope-limiter-explicit")
             {
