@@ -3,56 +3,10 @@
 #include <string>
 #include "dg/algorithm.h"
 #include "dg/file/file.h"
+#include "common.h"
 
 namespace equations
 {
-
-dg::Grid1d createGrid( Json::Value grid)
-{
-    unsigned Nx = grid.get( "Nx", 48).asUInt();
-    double x0 = grid["x"].get( 0u, 0.).asDouble();
-    double x1 = grid["x"].get( 1u, 1.).asDouble();
-    dg::bc bcx = dg::str2bc ( grid.get("bc", "NEU").asString());
-    return dg::Grid1d( x0, x1, 1, Nx, bcx);
-}
-
-void assign_ghost_cells( const dg::HVec& y, dg::HVec& yg, dg::bc bcx)
-{
-    unsigned Nx = y.size();
-    for( unsigned i=0; i<Nx; i++)
-        yg[i+2] = y[i];
-    //assign ghost values
-    if( bcx == dg::PER)
-    {
-        yg[Nx+2] = y[0]; // right boundary
-        yg[Nx+3] = y[1];
-        yg[1] = y[Nx-1]; // left boundary
-        yg[0] = y[Nx-2];
-    }
-    else
-    {
-        if ( bcx == dg::NEU || bcx == dg::NEU_DIR)
-        {
-            yg[Nx+2] = y[Nx-1];
-            yg[Nx+3] = y[Nx-2];
-        }
-        if( bcx == dg::NEU || bcx == dg::DIR_NEU)
-        {
-            yg[1] = y[0];
-            yg[0] = y[1];
-        }
-        if ( bcx == dg::DIR || bcx == dg::DIR_NEU)
-        {
-            yg[Nx+2] = -y[Nx-1];
-            yg[Nx+3] = -y[Nx-2];
-        }
-        if( bcx == dg::DIR || bcx == dg::NEU_DIR)
-        {
-            yg[1] = -y[0];
-            yg[0] = -y[1];
-        }
-    }
-}
 
 struct Continuity
 {
@@ -195,7 +149,8 @@ int main( int argc, char* argv[])
     std::cout << js <<std::endl;
 
     /////////////////////////////////////////////////////////////////
-    dg::Grid1d grid = equations::createGrid( js["grid"]);
+    dg::bc bcx = dg::str2bc ( js["grid"].get("bc", "NEU").asString());
+    dg::Grid1d grid = equations::createGrid( js["grid"], bcx);
     dg::HVec w1d( dg::create::weights(grid));
     /////////////////////////////////////////////////////////////////
     std::string init = js["init"].get("type", "step").asString();

@@ -4,75 +4,14 @@
 #include "dg/algorithm.h"
 #include "dg/geometries/geometries.h"
 #include "dg/file/file.h"
+#include "common.h"
 
 namespace equations
 {
 
-dg::Grid1d createGrid( Json::Value grid)
-{
-    unsigned Nx = grid.get( "Nx", 48).asUInt();
-    double x0 = grid["x"].get( 0u, 0.).asDouble();
-    double x1 = grid["x"].get( 1u, 1.).asDouble();
-    return dg::Grid1d( x0, x1, 1, Nx, dg::PER);
-}
-dg::Grid1d createStaggeredGrid( Json::Value grid)
-{
-    dg::Grid1d g1d = createGrid(grid);
-    unsigned Nx = grid.get( "Nx", 48).asUInt();
-    double x0 = g1d.x0() + g1d.h()/2.;
-    double x1 = g1d.x1() + g1d.h()/2.;
-    return dg::Grid1d( x0, x1, 1, Nx, dg::PER);
-}
-
-void assign_ghost_cells( const dg::HVec& y, dg::HVec& yg, dg::bc bcx)
-{
-    unsigned Nx = y.size();
-    for( unsigned i=0; i<Nx; i++)
-        yg[i+2] = y[i];
-    //assign ghost values
-    if( bcx == dg::PER)
-    {
-        yg[Nx+2] = y[0]; // right boundary
-        yg[Nx+3] = y[1];
-        yg[1] = y[Nx-1]; // left boundary
-        yg[0] = y[Nx-2];
-    }
-    else
-    {
-        if ( bcx == dg::NEU || bcx == dg::NEU_DIR)
-        {
-            yg[Nx+2] = y[Nx-1];
-            yg[Nx+3] = y[Nx-2];
-        }
-        if( bcx == dg::NEU || bcx == dg::DIR_NEU)
-        {
-            yg[1] = y[0];
-            yg[0] = y[1];
-        }
-        if ( bcx == dg::DIR || bcx == dg::DIR_NEU)
-        {
-            yg[Nx+2] = -y[Nx-1];
-            yg[Nx+3] = -y[Nx-2];
-        }
-        if( bcx == dg::DIR || bcx == dg::NEU_DIR)
-        {
-            yg[1] = -y[0];
-            yg[0] = -y[1];
-        }
-    }
-}
-
-double minmod( double x, double y)
-{
-    if( x >= 0 && y >= 0)
-        return std::min( x,y);
-    else if( x <=0 && y <= 0)
-        return std::max(x,y);
-    return 0.;
-}
-
 struct NavierStokesExplicit
 {
+    friend class NavierStokesImplicit;
     NavierStokesExplicit( dg::Grid1d g, dg::Grid1d vel_g, Json::Value js) :
         m_velocity( g.size(), 0.), m_g(g), m_vel_g(vel_g)
     {
@@ -99,7 +38,7 @@ struct NavierStokesExplicit
         }
     }
 
-    dg::HVec velocity() const{return m_velocity;}
+    const dg::HVec& velocity() const{return m_velocity;}
     void operator() ( double t, const std::array<dg::HVec,2> & y, std::array<dg::HVec, 2>& yp)
     {
         // y[0] -> density
@@ -337,55 +276,47 @@ struct NavierStokesExplicit
 
 struct NavierStokesImplicit
 {
-    NavierStokesImplicit( dg::Grid1d g, Json::Value js) :
-        m_g(g)
-    {
-        dg::HVec temp( g.size()+4, 0.);
-        m_yg.fill( temp);
-        m_scheme = js["advection"].get("type", "upwind").asString();
-        m_variant = js["advection"].get("variant", "original").asString();
-        m_alpha = js["physical"].get("alpha", 1.0).asDouble();
-        m_gamma = js["physical"].get("gamma", 1.0).asDouble();
-        m_bc_n = dg::str2bc(js["bc"].get("density", "PER").asString());
-        m_bc_u = dg::str2bc(js["bc"].get("velocity", "PER").asString());
-    }
+    NavierStokesImplicit( NavierStokesExplicit& ex) : m_ex(ex){}
 
     void operator() ( double t, const std::array<dg::HVec,2> & y, std::array<dg::HVec,2>& yp)
     {
         dg::blas1::copy( 0., yp);
-        unsigned Nx = m_g.N();
-        double hx = m_g.h();
-        assign_ghost_cells( y[0], m_yg[0], m_bc_n);
-        assign_ghost_cells( y[1], m_yg[1], m_bc_u);
+        unsigned Nx = m_ex.m_g.N();
+        double hx = m_ex.m_g.h();
+        assign_ghost_cells( y[0], m_ex.m_yg[0], m_ex.m_bc_n);
+        assign_ghost_cells( y[1], m_ex.m_yg[1], m_ex.m_bc_u);
         // ghost cells are shifted by 2
-        if( m_scheme == "staggered")
+        if( m_ex.m_scheme == "staggered")
         {
-            if( m_variant != "explicit" && m_variant != "slope-limiter-explicit")
+            if( m_ex.m_variant != "explicit" && m_ex.m_variant !=
+                    "slope-limiter-explicit")
             {
                 for( unsigned i=0; i<Nx; i++)
                 {
                     unsigned k=i+2;
-                    yp[1][i] = -m_alpha*(std::pow(m_yg[0][k+1], m_gamma) -
-                                         std::pow(m_yg[0][k], m_gamma))/hx;
+                    yp[1][i] = -m_ex.m_alpha*(std::pow(m_ex.m_yg[0][k+1],
+                                m_ex.m_gamma) - std::pow(m_ex.m_yg[0][k],
+                                    m_ex.m_gamma))/hx;
                     // eventual sources (due to floor level for example) should also
                     // go here
                 }
             }
         }
-        else if( m_scheme == "velocity-staggered")
+        else if( m_ex.m_scheme == "velocity-staggered")
         {
-            if( m_variant != "explicit" && m_variant != "slope-limiter-explicit")
+            if( m_ex.m_variant != "explicit" && m_ex.m_variant != "slope-limiter-explicit")
             {
                 for( unsigned i=0; i<Nx; i++)
                 {
                     unsigned k=i+2;
-                    if( m_gamma == 1)
-                        yp[1][i] += -m_alpha*(  log(m_yg[0][k+1]) -
-                                log(m_yg[0][k]))/hx;
+                    double gamma = m_ex.m_gamma;
+                    if( gamma == 1)
+                        yp[1][i] += -m_ex.m_alpha*(  log(m_ex.m_yg[0][k+1]) -
+                                log(m_ex.m_yg[0][k]))/hx;
                     else
-                        yp[1][i] += -m_gamma/(m_gamma-1)*m_alpha*(
-                                pow(m_yg[0][k+1], m_gamma-1) - pow(m_yg[0][k],
-                                    m_gamma-1))/hx;
+                        yp[1][i] += -gamma/(gamma-1)*m_ex.m_alpha*(
+                                pow(m_ex.m_yg[0][k+1], gamma-1) - pow(m_ex.m_yg[0][k],
+                                    gamma-1))/hx;
                     // eventual sources (due to floor level for example) should also
                     // go here
                 }
@@ -393,11 +324,7 @@ struct NavierStokesImplicit
         }
     }
     private:
-    double m_alpha, m_gamma;
-    std::array<dg::HVec,2> m_yg;
-    dg::Grid1d m_g;
-    dg::bc m_bc_n, m_bc_u;
-    std::string m_scheme, m_variant;
+    NavierStokesExplicit& m_ex;
 };
 
 struct NavierStokesImplicitSolver
@@ -592,14 +519,14 @@ int main( int argc, char* argv[])
     std::cout << js <<std::endl;
 
     /////////////////////////////////////////////////////////////////
-    dg::Grid1d grid = equations::createGrid( js["grid"]);
+    dg::Grid1d grid = equations::createGrid( js["grid"], dg::PER);
     dg::HVec w1d( dg::create::weights(grid));
     /////////////////////////////////////////////////////////////////
     std::string init = js["init"].get("type", "step").asString();
     std::string scheme = js["advection"].get("type", "staggered").asString();
-    dg::Grid1d vel_grid = equations::createGrid( js["grid"]);
+    dg::Grid1d vel_grid = equations::createGrid( js["grid"], dg::PER);
     if ( "staggered" == scheme || "velocity-staggered" == scheme)
-        vel_grid = equations::createStaggeredGrid( js["grid"]);
+        vel_grid = equations::createStaggeredGrid( js["grid"], dg::PER);
     std::array<dg::HVec,2> y0 = {dg::evaluate( dg::zero, grid), dg::evaluate( dg::zero, grid)};
     if( "step" == init)
     {
@@ -670,8 +597,8 @@ int main( int argc, char* argv[])
         erk_adaptive = dg::Adaptive<dg::ERKStep<std::array<dg::HVec,2> >>( tableau, y0);
     }
     double dt = 1e-6, time = 0.;
-    equations::NavierStokesExplicit exp( grid, vel_grid, js);
-    equations::NavierStokesImplicit imp( grid,js);
+    equations::NavierStokesExplicit ex( grid, vel_grid, js);
+    equations::NavierStokesImplicit im( ex);
 
     // Set up netcdf
     std::string inputfile = js.toStyledString(); //save input without comments, which is important if netcdf file is later read by another parser
@@ -741,10 +668,10 @@ int main( int argc, char* argv[])
     size_t start[2] = {0, 0};
     size_t count[2] = {1, grid.size()};
     dg::HVec result = y0[0];
-    equations::Variables var = {exp, grid, y0, time, js, 0., 0, 0};
+    equations::Variables var = {ex, grid, y0, time, js, 0., 0, 0};
     {   // update internal velocity
         std::array<dg::HVec , 2> tmp ( y0);
-        exp( time, y0, tmp);
+        ex( time, y0, tmp);
     }
     for( auto& record : equations::diagnostics_list)
     {
@@ -772,10 +699,10 @@ int main( int argc, char* argv[])
             std::cout << "time " <<time <<" "<<dt<<" "<<t_output<<"\n";
             // Compute a step and error
             if( timestepper == "ARK")
-                ark_adaptive.step( exp, imp, time, y0, time, y0, dt,
+                ark_adaptive.step( ex, im, time, y0, time, y0, dt,
                     dg::pid_control, dg::l2norm, rtol, atol);
             else if( timestepper == "ERK")
-                erk_adaptive.step( exp, time, y0, time, y0, dt,
+                erk_adaptive.step( ex, time, y0, time, y0, dt,
                     dg::pid_control, dg::l2norm, rtol, atol);
             var.nsteps++;
             if( erk_adaptive.failed() || ark_adaptive.failed())
@@ -815,10 +742,10 @@ int main( int argc, char* argv[])
     //    t.tic();
     //    if( timestepper == "ARK")
     //        for( unsigned k=0; k<NT; k++)
-    //            ark_fixed.step( exp, imp, time, y0, time, y0, dt, delta);
+    //            ark_fixed.step( ex, im, time, y0, time, y0, dt, delta);
     //    else if( timestepper == "ERK")
     //        for( unsigned k=0; k<NT; k++)
-    //            erk_fixed.step( exp, time, y0, time, y0, dt);
+    //            erk_fixed.step( ex, time, y0, time, y0, dt);
     //    var.nsteps += NT;
     //    t.toc();
     //    var.duration = t.diff();
