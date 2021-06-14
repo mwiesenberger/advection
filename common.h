@@ -37,22 +37,22 @@ void assign_ghost_cells( const dg::HVec& y, dg::HVec& yg, dg::bc bcx)
     }
     else
     {
-        if ( bcx == dg::NEU || bcx == dg::NEU_DIR)
+        if ( bcx == dg::NEU || bcx == dg::DIR_NEU)
         {
             yg[Nx+2] = y[Nx-1];
             yg[Nx+3] = y[Nx-2];
         }
-        if( bcx == dg::NEU || bcx == dg::DIR_NEU)
-        {
-            yg[1] = y[0];
-            yg[0] = y[1];
-        }
-        if ( bcx == dg::DIR || bcx == dg::DIR_NEU)
+        if ( bcx == dg::DIR || bcx == dg::NEU_DIR)
         {
             yg[Nx+2] = -y[Nx-1];
             yg[Nx+3] = -y[Nx-2];
         }
-        if( bcx == dg::DIR || bcx == dg::NEU_DIR)
+        if( bcx == dg::NEU || bcx == dg::NEU_DIR)
+        {
+            yg[1] = y[0];
+            yg[0] = y[1];
+        }
+        if( bcx == dg::DIR || bcx == dg::DIR_NEU)
         {
             yg[1] = -y[0];
             yg[0] = -y[1];

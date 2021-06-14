@@ -18,6 +18,8 @@ struct Poisson1d
         m_hx( g.h())
     {
         m_bcx = dg::str2bc(js["bc"].get("potential", "PER").asString());
+        m_eps_D   = js["physical"].get("epsilon_D", 1e-4).asDouble();
+        m_mode = js["physical"].get("type", "original").asString();
     }
     void symv( const dg::HVec& phi, dg::HVec& lapMPhi)
     {
@@ -26,14 +28,25 @@ struct Poisson1d
         for( unsigned i=0; i<Nx; i++)
         {
             unsigned k=i+2;
-            lapMPhi[i] = -(m_gh_phi[k+1] - 2.*m_gh_phi[k] +
+            lapMPhi[i] = -m_eps_D*(m_gh_phi[k+1] - 2.*m_gh_phi[k] +
                     m_gh_phi[k-1])/m_hx/m_hx;
         }
+        if( "adiabatic" == m_mode)
+            for( unsigned i=0; i<Nx; i++)
+                lapMPhi[i] += exp(phi[i]);
     }
+    void operator()( const dg::HVec& phi, dg::HVec& lapMPhi)
+     {
+         symv( phi, lapMPhi);
+
+     }
+
     private:
     dg::HVec m_gh_phi;
     dg::bc m_bcx;
     double m_hx;
+    double m_eps_D;
+    std::string m_mode;
 };
 
 struct PlasmaExplicit
@@ -55,6 +68,8 @@ struct PlasmaExplicit
         m_yg[1].fill( temp);
         m_scheme = js["advection"].get("type", "upwind").asString();
         m_variant = js["advection"].get("variant", "original").asString();
+        m_eps_D   = js["physical"].get("epsilon_D", 1e-4).asDouble();
+        m_mode = js["physical"].get("type", "original").asString();
         m_tau[0] = -1.;
         m_tau[1] = js["physical"].get("tau", 1.0).asDouble();
         m_mu[0] = js["physical"].get("mu", -0.00027244).asDouble();
@@ -63,7 +78,6 @@ struct PlasmaExplicit
         m_nu_u[1] = js["physical"]["nu_u"].get( 1u, 0.0).asDouble();
         m_nu_n[0] = js["physical"]["nu_n"].get( 0u, 0.0).asDouble();
         m_nu_n[1] = js["physical"]["nu_n"].get( 1u, 0.0).asDouble();
-        m_eps_D   = js["physical"].get("epsilon_D", 1e-4).asDouble();
         m_eta     = js["physical"].get("resistivity", 1e-4).asDouble();
         m_bc_n = dg::str2bc(js["bc"].get("density", "PER").asString());
         m_bc_u = dg::str2bc(js["bc"].get("velocity", "PER").asString());
@@ -82,7 +96,7 @@ struct PlasmaExplicit
         m_eps = js["poisson"].get("eps", 1e-6).asDouble();
         m_phi.resize(g.size(), 0.);
         m_ghphi.resize(g.size()+4, 0.);
-        m_precond.resize( g.size(), 1.);
+        m_precond.resize( g.size(), 1./m_eps_D);
         m_rhs.resize( g.size(), 0.);
         m_norm.resize( g.size(), g.h());
         m_source.resize( g.size(), 0.);
@@ -104,34 +118,51 @@ struct PlasmaExplicit
             unsigned l_input = js["poisson"].get( "l_input", 2).asUInt();
             m_bicg.construct( m_phi, m_phi.size(), l_input);
         }
+        else if( "anderson" == m_method)
+        {
+            m_mMax = js["poisson"].get( "mMax", 10).asUInt();
+            m_damping = js["poisson"].get("damping", 1e-2).asDouble();
+            m_anderson.construct( m_phi, m_mMax);
+        }
+
     }
 
     const std::array<dg::HVec,2>& velocity() const{return m_velocity;}
     const dg::HVec& potential() const{return m_phi;}
     void solve_poisson( double t, const std::array<dg::HVec,2> & nn, dg::HVec& m_ghphi) {
-        dg::blas1::axpby( 1./m_eps_D, nn[1], -1./m_eps_D, nn[0], m_rhs);
+        //initial guess
+        m_old_phi.extrapolate( t, m_phi);
+        unsigned iter;
+        if( m_mode == "adiabatic")
+            dg::blas1::copy( nn[1], m_rhs);
+        else
+            dg::blas1::axpby( 1., nn[1], -1., nn[0], m_rhs);
         if( m_init == "mms")
         {
             dg::HVec tmpN( nn[0]);
             double k = m_k, A = m_A, v= m_v;
             tmpN = dg::evaluate( [=](double x){
                 return (A*((-1 + m_eps_D*k*k)*cos(k*(-(t*v) + x)) +
-                            sin(k*(-(t*v) + x))))/m_eps_D;
+                            sin(k*(-(t*v) + x))));
                 }, m_g);
             dg::blas1::axpby( 1., tmpN, 1., m_rhs);
         }
-        //initial guess
-        m_old_phi.extrapolate( t, m_phi);
-        unsigned iter;
         if( m_method == "gmres")
             iter = m_lgmres.solve( m_poisson, m_phi, m_rhs, m_precond,
-                    m_norm, m_eps);
+                    m_norm, m_eps, m_eps_D);
         else if( m_method == "cg")
             iter = m_pcg( m_poisson, m_phi, m_rhs, m_precond,
-                    m_norm, m_eps);
+                    m_norm, m_eps, m_eps_D);
         else if( m_method == "bicgstab")
             iter = m_bicg.solve( m_poisson, m_phi, m_rhs, m_precond,
-                    m_norm, m_eps);
+                    m_norm, m_eps, m_eps_D);
+        else if ( m_method == "anderson")
+        {
+            if( m_mode == "adiabatic")
+                dg::blas1::transform( nn[1], m_phi, dg::LN<double>());
+            iter = m_anderson.solve( m_poisson, m_phi, m_rhs, m_norm, m_eps,
+                    m_eps*m_eps_D, m_phi.size(), m_damping, m_mMax, false);
+        }
         if( iter == m_g.N())
             throw std::runtime_error( "Solution of Poisson equation does not converge!\n");
         m_old_phi.update( t, m_phi);
@@ -151,6 +182,8 @@ struct PlasmaExplicit
         solve_poisson( t, y[0], m_ghphi);
         for( unsigned s=0; s<2; s++) // species loop
         {
+            if( m_mode == "adiabatic" && s == 0)
+                continue;
             // ghost cells are shifted by 2
             if ( m_scheme == "centered")
             {
@@ -319,7 +352,7 @@ struct PlasmaExplicit
         }
     }
     private:
-    std::string m_scheme, m_variant, m_init, m_method;
+    std::string m_scheme, m_variant, m_init, m_method, m_mode;
     Vector m_yg;
     dg::HVec m_precond, m_norm, m_phi, m_ghphi, m_rhs, m_source;
     std::array<dg::HVec,2> m_velocity; // stores the velocity on non-staggered grid
@@ -327,12 +360,14 @@ struct PlasmaExplicit
     dg::LGMRES<dg::HVec> m_lgmres;
     dg::CG<dg::HVec> m_pcg;
     dg::BICGSTABl<dg::HVec> m_bicg;
+    dg::AndersonAcceleration<dg::HVec> m_anderson;
     Poisson1d m_poisson;
     dg::Extrapolation<dg::HVec> m_old_phi;
     dg::bc m_bc_n, m_bc_u, m_bc_p;
     std::array<double,2> m_tau, m_mu, m_nu_u, m_nu_n;
-    double m_eps_D, m_eps, m_eta;
+    double m_eps, m_eta, m_eps_D;
     double m_n0 = 0, m_u0 = 0, m_A = 0, m_B = 0, m_k = 0, m_v = 0;
+    double m_mMax, m_damping;
 };
 
 struct PlasmaImplicit
@@ -353,11 +388,13 @@ struct PlasmaImplicit
             if( m_ex.m_variant != "explicit" && m_ex.m_variant !=
                     "slope-limiter-explicit")
             {
+                m_ex.solve_poisson( t, y[0], m_ex.m_ghphi);
+                dg::HVec& ghphi = m_ex.m_ghphi;
                 for( unsigned s=0; s<2; s++)
                 {
-                    m_ex.solve_poisson( t, y[0], m_ex.m_ghphi);
+                    if( m_ex.m_mode == "adiabatic" && s == 0)
+                        continue;
                     dg::HVec& nn = m_ex.m_yg[0][s];
-                    dg::HVec& ghphi = m_ex.m_ghphi;
                     for( unsigned i=0; i<Nx; i++)
                     {
                         unsigned k=i+2;
@@ -576,6 +613,7 @@ int main( int argc, char* argv[])
     /////////////////////////////////////////////////////////////////
     std::string init = js["init"].get("type", "step").asString();
     std::string scheme = js["advection"].get("type", "staggered").asString();
+    std::string mode = js["physical"].get("type", "original").asString();
     dg::Grid1d vel_grid = equations::createGrid( js["grid"], dg::PER);
     if ( "staggered" == scheme )
         vel_grid = equations::createStaggeredGrid( js["grid"], dg::PER);
@@ -586,9 +624,22 @@ int main( int argc, char* argv[])
         // This is the classical Riemann problem (Dam break for shallow water)
         double x_a = js["init"].get("x_a", 0.1).asDouble();
         double n_l = js["init"].get("n_l", 1.0).asDouble();
-        double n_r = js["init"].get("n_r", 1.0).asDouble();
+        double n_r = js["init"].get("n_r", 0.2).asDouble();
+        x_a *= grid.lx();
         y0[0][0] = y0[0][1] = dg::evaluate( [=](double x){ return x < x_a ? n_l
                 : n_r;}, grid);
+    }
+    else if( "soft-step" == init)
+    {
+        double x_a = js["init"].get("x_a", 0.1).asDouble();
+        double n_l = js["init"].get("n_l", 1.0).asDouble();
+        double n_r = js["init"].get("n_r", 0.2).asDouble();
+        double alpha = js["init"].get("alpha", 0.1).asDouble();
+        x_a*= grid.lx();
+        alpha*=grid.lx();
+        dg::PolynomialHeaviside poly( x_a, alpha/2., -1);
+        y0[0][0] = y0[0][1] = dg::evaluate( [&](double x){
+                return n_r + (n_l-n_r)*poly(x);}, grid);
     }
     else if( "wave" == init)
     {
@@ -618,6 +669,8 @@ int main( int argc, char* argv[])
                     (u_0+B*cos(k*x))*(n_0+A*cos(k*x));}, vel_grid);
         }
     }
+    if( "adiabatic" == mode)
+        y0[0][0] = y0[1][0] = dg::evaluate( dg::zero, grid);
 
     std::string timestepper = js["timestepper"].get( "type", "ERK").asString();
     std::string tableau= js["timestepper"].get("tableau",
@@ -642,7 +695,7 @@ int main( int argc, char* argv[])
         erk_fixed = dg::RungeKutta<Vector>( tableau, y0);
         erk_adaptive = dg::Adaptive<dg::ERKStep<Vector >>( tableau, y0);
     }
-    double dt = 1e-6, time = 0.;
+    double dt = 1e-8, time = 0.;
     equations::PlasmaExplicit ex( grid, vel_grid, js);
     equations::PlasmaImplicit im( ex);
 
