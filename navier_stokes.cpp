@@ -50,61 +50,64 @@ struct NavierStokesExplicit
         // ghost cells are shifted by 2
         if ( m_scheme == "upwind")
         {
+            dg::HVec q(m_yg[0]);
+            const dg::HVec & nn = m_yg[0];
+            const dg::HVec & uu = m_yg[1];
+            for ( unsigned k=1; k<Nx+3; k++)
+            {
+                q[k] = 0.5*(uu[k]+uu[k-1]) >= 0 ? uu[k-1]*uu[k-1] : uu[k]*uu[k];
+                q[k] /= 2.;
+            }
             for( unsigned i=0; i<Nx; i++)
             {
                 m_velocity[i] = y[1][i];
                 unsigned k=i+2;
-                if( m_yg[1][k] > 0.)
-                    yp[0][i] =  -m_yg[1][k]*( m_yg[0][k] - m_yg[0][k-1])/ hx;
+                if( uu[k] > 0.)
+                    yp[0][i] =  -uu[k]*( nn[k] - nn[k-1])/ hx;
                 else
-                    yp[0][i] =  -m_yg[1][k]*( m_yg[0][k+1] - m_yg[0][k])/ hx;
-                yp[0][i] += -m_yg[0][k]*( m_yg[1][k+1]-m_yg[1][k-1])/2./hx;
-                yp[1][i] =
-                    -m_yg[1][k]*(m_yg[1][k+1]-m_yg[1][k-1])/2./hx -
-                    m_alpha*(std::pow(m_yg[0][k+1],
-                                m_gamma)-std::pow(m_yg[0][k-1],
-                                    m_gamma))/2./hx/m_yg[0][k]+
-                    m_nu_u/m_yg[0][k]*(m_yg[1][k+1] -
-                            2.*m_yg[1][k]+m_yg[1][k-1])/hx/hx;
+                    yp[0][i] =  -uu[k]*( nn[k+1] - nn[k])/ hx;
+                yp[0][i] += -nn[k]*( uu[k+1]-uu[k-1])/2./hx;
+                yp[1][i] =  -(q[k+1]-q[k])/hx -
+                    m_alpha*(std::pow(nn[k+1], m_gamma)-std::pow(nn[k-1],
+                                m_gamma))/2./hx/nn[k]+
+                    m_nu_u/nn[k]*(uu[k+1]-2.*uu[k]+uu[k-1])/hx/hx;
             }
         }
         else if ( m_scheme == "upwind2")
         {
+            const dg::HVec & nn = m_yg[0];
+            const dg::HVec & uu = m_yg[1];
             for( unsigned i=0; i<Nx; i++)
             {
                 m_velocity[i] = y[1][i];
                 unsigned k=i+2;
                 if( m_yg[1][k] > 0.)
-                    yp[0][i] =  -m_yg[1][k]*( 3*m_yg[0][k] - 4*m_yg[0][k-1] +
-                            m_yg[0][k-2])/2./hx;
+                    yp[0][i] =  -uu[k]*( 3*nn[k] - 4*nn[k-1] + nn[k-2])/2./hx;
                 else
-                    yp[0][i] =  -m_yg[1][k]*( -m_yg[0][k+2] + 4*m_yg[0][k+1] -
-                            3*m_yg[0][k])/2./hx;
-                yp[0][i] += -m_yg[0][k]*( m_yg[1][k+1]-m_yg[1][k-1])/2./hx;
+                    yp[0][i] =  -uu[k]*( -nn[k+2] + 4*nn[k+1] - 3*nn[k])/2./hx;
+                yp[0][i] += -nn[k]*( uu[k+1]-uu[k-1])/2./hx;
                 yp[1][i] =
-                    -m_yg[1][k]*(m_yg[1][k+1]-m_yg[1][k-1])/2./hx -
-                    m_alpha*(std::pow(m_yg[0][k+1],
-                                m_gamma)-std::pow(m_yg[0][k-1],
-                                    m_gamma))/2./hx/m_yg[0][k]+
-                    m_nu_u/m_yg[0][k]*(m_yg[1][k+1] -
-                            2.*m_yg[1][k]+m_yg[1][k-1])/hx/hx;
+                    -uu[k]*(uu[k+1]-uu[k-1])/2./hx -
+                    m_alpha*(std::pow(nn[k+1], m_gamma)-std::pow(nn[k-1],
+                                m_gamma))/2./hx/nn[k]+
+                    m_nu_u/nn[k]*(uu[k+1] - 2.*uu[k]+uu[k-1])/hx/hx;
             }
         }
         else if ( m_scheme == "centered")
         {
+            const dg::HVec & nn = m_yg[0];
+            const dg::HVec & uu = m_yg[1];
             for( unsigned i=0; i<Nx; i++)
             {
                 m_velocity[i] = y[1][i];
                 unsigned k=i+2;
-                yp[0][i] =  -m_yg[1][k]*( m_yg[0][k+1]-m_yg[0][k-1])/2./hx
-                            -m_yg[0][k]*( m_yg[1][k+1]-m_yg[1][k-1])/2./hx;
+                yp[0][i] =  -uu[k]*( nn[k+1]-nn[k-1])/2./hx
+                            -nn[k]*( uu[k+1]-uu[k-1])/2./hx;
                 yp[1][i] =
-                    -m_yg[1][k]*(m_yg[1][k+1]-m_yg[1][k-1])/2./hx -
-                    m_alpha*(std::pow(m_yg[0][k+1],
-                                m_gamma)-std::pow(m_yg[0][k-1],
-                                    m_gamma))/2./hx/m_yg[0][k]+
-                    m_nu_u/m_yg[0][k]*(m_yg[1][k+1] -
-                            2.*m_yg[1][k]+m_yg[1][k-1])/hx/hx;
+                    -uu[k]*(uu[k+1]-uu[k-1])/2./hx -
+                    m_alpha*(std::pow(nn[k+1], m_gamma)-std::pow(nn[k-1],
+                                m_gamma))/2./hx/nn[k]+
+                    m_nu_u/nn[k]*(uu[k+1] - 2.*uu[k]+uu[k-1])/hx/hx;
             }
         }
         else if ( m_scheme == "staggered")
@@ -152,18 +155,20 @@ struct NavierStokesExplicit
                 for( unsigned i=0; i<Nx; i++)
                 {
                     unsigned k=i+2;
-                    //yp[1][i] += -m_alpha*(  std::pow(nn[k+1], m_gamma) -
-                    //                        std::pow(nn[k], m_gamma))/hx;
-                    yp[1][i] += -m_alpha*m_gamma*std::pow( nn[k], m_gamma-1)*(
-                            nn[k+1] -nn[k])/hx;
-                    // eventual sources (due to floor level for example) should also
-                    // go here
+                    yp[1][i] += -m_alpha*(  std::pow(nn[k+1], m_gamma) -
+                                            std::pow(nn[k], m_gamma))/hx;
+                    // This is a bad idea (it will lead to systematic
+                    // unphysical acceleration):
+                    //yp[1][i] += -m_alpha*m_gamma*std::pow( nn[k], m_gamma-1)*(
+                    //        nn[k+1] -nn[k])/hx;
+                    // It is bad because nn[k] is used in the pow function instead
+                    // of (nn[k+1]+nn[k])/2;
                 }
             }
         }
         else if ( m_scheme == "velocity-staggered")
         {
-            dg::HVec qST(m_yg[1]), q(qST), uh(qST);
+            dg::HVec qST(m_yg[1]), q(qST), fh(qST), u2(qST);
             const dg::HVec & uST = m_yg[1];
             const dg::HVec & nn = m_yg[0];
             for( unsigned k=1; k<Nx+2; k++)
@@ -177,15 +182,23 @@ struct NavierStokesExplicit
                 qST[k]*= uST[k]; // k + 1/2
             }
             for ( unsigned k=1; k<Nx+3; k++)
-                q [k] = 0.5*(uST[k]+uST[k-1]);
+            {
+                q[k] = 0.5*(uST[k]+uST[k-1]);
+                u2[k] = uST[k]*uST[k]/2.;
+            }
             for ( unsigned k=2; k<Nx+3; k++)
             {
-                uh[k] = q[k] >= 0 ? uST[k-1] : uST[k];
+                //uh[k] = q[k] >= 0 ? uST[k-1] : uST[k];
+                fh[k] = q[k] >= 0 ? u2[k-1] : u2[k];
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
                         "slope-limiter")
-                    uh[k] = q[k] >=0 ? uST[k-1] + 1./2.*minmod(
-                            uST[k]-uST[k-1], uST[k-1]-uST[k-2]) : uST[k] -
-                        1./2.*minmod( uST[k+1]-uST[k], uST[k]-uST[k-1]);
+                    //uh[k] = q[k] >=0 ? uST[k-1] + 1./2.*minmod(
+                    //        uST[k]-uST[k-1], uST[k-1]-uST[k-2]) : uST[k] -
+                    //    1./2.*minmod( uST[k+1]-uST[k], uST[k]-uST[k-1]);
+                    // // higher order flux leads to centered differences
+                    fh[k] = q[k] >=0 ? u2[k-1] + 1./2.*minmod( u2[k]-u2[k-1],
+                            u2[k-1]-u2[k-2]) : u2[k] - 1./2.*minmod(
+                                u2[k+1]-u2[k], u2[k]-u2[k-1]);
             }
             for( unsigned i=0; i<Nx; i++)
             {
@@ -193,7 +206,8 @@ struct NavierStokesExplicit
                 m_velocity[i] = 0.5*(uST[k]+uST[k-1]);
                 yp[0][i] = -( qST[k] - qST[k-1])/hx;
                 //
-                yp[1][i] = -(uh[k+1]*q[k+1]-uh[k]*q[k])/2./hx;
+                //yp[1][i] = -(uh[k+1]*q[k+1]-uh[k]*q[k])/2./hx;
+                yp[1][i] = -(fh[k+1]-fh[k])/hx;
                 double nST = (nn[k] + nn[k+1])/2.;
                 yp[1][i]+= m_nu_u/nST*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
             }
@@ -202,12 +216,16 @@ struct NavierStokesExplicit
                 for( unsigned i=0; i<Nx; i++)
                 {
                     unsigned k=i+2;
+                    // The two variants make no difference
                     if( m_gamma == 1)
                         yp[1][i] += -m_alpha*(  log(nn[k+1]) - log(nn[k]))/hx;
+                        //yp[1][i] += -m_alpha*(  nn[k+1] - nn[k])*(1./nn[k+1]+1./nn[k])/2./hx;
                     else
                         yp[1][i] += -m_gamma/(m_gamma-1)*m_alpha*(
                                 pow(nn[k+1], m_gamma-1) - pow(nn[k],
                                     m_gamma-1))/hx;
+                        //yp[1][i] += -m_alpha*( pow(nn[k+1], m_gamma)
+                        //        - pow(nn[k], m_gamma))*(1./nn[k+1]+1./nn[k])/2./hx;
                     // eventual sources (due to floor level for example) should also
                     // go here
                 }
@@ -304,7 +322,8 @@ struct NavierStokesImplicit
         }
         else if( m_ex.m_scheme == "velocity-staggered")
         {
-            if( m_ex.m_variant != "explicit" && m_ex.m_variant != "slope-limiter-explicit")
+            if( m_ex.m_variant != "explicit" && m_ex.m_variant !=
+                    "slope-limiter-explicit")
             {
                 for( unsigned i=0; i<Nx; i++)
                 {
@@ -313,10 +332,13 @@ struct NavierStokesImplicit
                     if( gamma == 1)
                         yp[1][i] += -m_ex.m_alpha*(  log(m_ex.m_yg[0][k+1]) -
                                 log(m_ex.m_yg[0][k]))/hx;
+                        //yp[1][i] += -m_ex.m_alpha*(  m_ex.m_yg[0][k+1] - m_ex.m_yg[0][k])*(1./m_ex.m_yg[0][k+1]+1./m_ex.m_yg[0][k])/2./hx;
                     else
                         yp[1][i] += -gamma/(gamma-1)*m_ex.m_alpha*(
                                 pow(m_ex.m_yg[0][k+1], gamma-1) - pow(m_ex.m_yg[0][k],
                                     gamma-1))/hx;
+                        //yp[1][i] += -m_ex.m_alpha*( pow(m_ex.m_yg[0][k+1], gamma)
+                        //        - pow(m_ex.m_yg[0][k], gamma))*(1./m_ex.m_yg[0][k+1]+1./m_ex.m_yg[0][k])/2./hx;
                     // eventual sources (due to floor level for example) should also
                     // go here
                 }

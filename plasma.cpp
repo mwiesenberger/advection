@@ -132,6 +132,15 @@ struct PlasmaExplicit
     void solve_poisson( double t, const std::array<dg::HVec,2> & nn, dg::HVec& m_ghphi) {
         //initial guess
         m_old_phi.extrapolate( t, m_phi);
+        // a little bit dangerous because what you actually need to check is the rhs
+        // the solvers will also realize that the guessed solution is close
+        //if( m_old_phi.exists( t))
+        //{
+        //    assign_ghost_cells( m_phi, m_ghphi, m_bc_p);
+        //    //std::cout << "Solution of Poisson equation already available\n";
+        //    return;
+        //}
+
         unsigned iter;
         if( m_mode == "adiabatic")
             dg::blas1::copy( nn[1], m_rhs);
@@ -423,8 +432,9 @@ struct PlasmaImplicitSolver
     // solve (y + alpha I(t,y) = rhs
     void solve( double alpha, PlasmaImplicit& im, double t, Vector& y, const Vector& rhs)
     {
-        im( t, y, m_tmp);
         dg::blas1::copy( rhs[0], y[0]);// I_n = 0
+        im( t, y, m_tmp); //ignores y[1], solves Poisson at time t for y[0] and
+        // writes 0 in m_tmp[0] and updates m_tmp[1]
         dg::blas1::axpby( 1., rhs[1], -alpha, m_tmp[1], y[1]); // u = rhs_u - alpha I_u
     }
     private:
@@ -703,7 +713,7 @@ int main( int argc, char* argv[])
     std::string inputfile = js.toStyledString(); //save input without comments, which is important if netcdf file is later read by another parser
     std::string outputfile;
     if( argc == 1 || argc == 2)
-        outputfile = "navier-stokes.nc";
+        outputfile = "plasma.nc";
     else
         outputfile = argv[2];
     /// //////////////////////set up netcdf/////////////////////////////////////
