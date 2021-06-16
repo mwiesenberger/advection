@@ -1,0 +1,596 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>One-dimensional hyperbolic systems &#8212; Discontinuous Galerkin methods</title>
+    
+  <link rel="stylesheet" href="_static/css/index.f658d18f9b420779cfdf24aa0a7e2d77.css">
+
+    
+  <link rel="stylesheet"
+    href="_static/vendor/fontawesome/5.13.0/css/all.min.css">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="_static/vendor/fontawesome/5.13.0/webfonts/fa-solid-900.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="_static/vendor/fontawesome/5.13.0/webfonts/fa-brands-400.woff2">
+
+    
+      
+  <link rel="stylesheet"
+    href="_static/vendor/open-sans_all/1.44.1/index.css">
+  <link rel="stylesheet"
+    href="_static/vendor/lato_latin-ext/1.44.1/index.css">
+
+    
+    <link rel="stylesheet" href="_static/sphinx-book-theme.40e2e510f6b7d1648584402491bb10fe.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="_static/togglebutton.css" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="_static/mystnb.css" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-thebe.css" />
+    <link rel="stylesheet" type="text/css" href="_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    
+  <link rel="preload" as="script" href="_static/js/index.d3f166471bb80abb5163.js">
+
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script src="_static/togglebutton.js"></script>
+    <script src="_static/clipboard.min.js"></script>
+    <script src="_static/copybutton.js"></script>
+    <script >var togglebuttonSelector = '.toggle, .admonition.dropdown, .tag_hide_input div.cell_input, .tag_hide-input div.cell_input, .tag_hide_output div.cell_output, .tag_hide-output div.cell_output, .tag_hide_cell.cell, .tag_hide-cell.cell';</script>
+    <script src="_static/sphinx-book-theme.d31b09fe5c1d09cb49b26a786de4a05d.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["\\(", "\\)"]], "displayMath": [["\\[", "\\]"]], "processRefs": false, "processEnvironments": false}})</script>
+    <script async="async" src="https://unpkg.com/thebelab@latest/lib/index.js"></script>
+    <script >
+        const thebe_selector = ".thebe"
+        const thebe_selector_input = "pre"
+        const thebe_selector_output = ".output"
+    </script>
+    <script async="async" src="_static/sphinx-thebe.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="References" href="References.html" />
+    <link rel="prev" title="Convergence of upwind scheme" href="convergence.html" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="docsearch:language" content="en" />
+
+
+
+  </head>
+  <body data-spy="scroll" data-target="#bd-toc-nav" data-offset="80">
+    
+
+    <div class="container-xl">
+      <div class="row">
+          
+<div class="col-12 col-md-3 bd-sidebar site-navigation show" id="site-navigation">
+    
+        <div class="navbar-brand-box">
+<a class="navbar-brand text-wrap" href="index.html">
+  
+  <img src="_static/logo.jpg" class="logo" alt="logo">
+  
+  
+  <h1 class="site-logo" id="site-title">Discontinuous Galerkin methods</h1>
+  
+</a>
+</div><form class="bd-search d-flex align-items-center" action="search.html" method="get">
+  <i class="icon fas fa-search"></i>
+  <input type="search" class="form-control" name="q" id="search-input" placeholder="Search this book..." aria-label="Search this book..." autocomplete="off" >
+</form>
+<nav class="bd-links" id="bd-docs-nav" aria-label="Main navigation">
+    <ul class="nav sidenav_l1">
+ <li class="toctree-l1">
+  <a class="reference internal" href="comparison.html">
+   Various advection schemes
+  </a>
+ </li>
+</ul>
+<ul class="current nav sidenav_l1">
+ <li class="toctree-l1">
+  <a class="reference internal" href="convergence.html">
+   Convergence of upwind scheme
+  </a>
+ </li>
+ <li class="toctree-l1 current active">
+  <a class="current reference internal" href="#">
+   One-dimensional hyperbolic systems
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="References.html">
+   References
+  </a>
+ </li>
+</ul>
+
+</nav> <!-- To handle the deprecated key -->
+
+<div class="navbar_extra_footer">
+  Powered by <a href="https://jupyterbook.org">Jupyter Book</a>
+</div>
+
+</div>
+
+
+          
+
+
+          
+<main class="col py-md-3 pl-md-4 bd-content overflow-auto" role="main">
+    
+    <div class="row topbar fixed-top container-xl">
+    <div class="col-12 col-md-3 bd-topbar-whitespace site-navigation show">
+    </div>
+    <div class="col pl-2 topbar-main">
+        
+        <button id="navbar-toggler" class="navbar-toggler ml-0" type="button" data-toggle="collapse"
+            data-toggle="tooltip" data-placement="bottom" data-target=".site-navigation" aria-controls="navbar-menu"
+            aria-expanded="true" aria-label="Toggle navigation" aria-controls="site-navigation"
+            title="Toggle navigation" data-toggle="tooltip" data-placement="left">
+            <i class="fas fa-bars"></i>
+            <i class="fas fa-arrow-left"></i>
+            <i class="fas fa-arrow-up"></i>
+        </button>
+        
+        
+<div class="dropdown-buttons-trigger">
+    <button id="dropdown-buttons-trigger" class="btn btn-secondary topbarbtn" aria-label="Download this page"><i
+            class="fas fa-download"></i></button>
+
+    <div class="dropdown-buttons">
+        <!-- ipynb file if we had a myst markdown file -->
+        
+        <!-- Download raw file -->
+        <a class="dropdown-buttons" href="_sources/OneDimensional.ipynb"><button type="button"
+                class="btn btn-secondary topbarbtn" title="Download source file" data-toggle="tooltip"
+                data-placement="left">.ipynb</button></a>
+        <!-- Download PDF via print -->
+        <button type="button" id="download-print" class="btn btn-secondary topbarbtn" title="Print to PDF"
+            onClick="window.print()" data-toggle="tooltip" data-placement="left">.pdf</button>
+    </div>
+</div>
+
+        <!-- Source interaction buttons -->
+
+<div class="dropdown-buttons-trigger">
+    <button id="dropdown-buttons-trigger" class="btn btn-secondary topbarbtn"
+        aria-label="Connect with source repository"><i class="fab fa-github"></i></button>
+    <div class="dropdown-buttons sourcebuttons">
+        <a class="repository-button"
+            href="https://github.com/mwiesenberger/advection"><button type="button" class="btn btn-secondary topbarbtn"
+                data-toggle="tooltip" data-placement="left" title="Source repository"><i
+                    class="fab fa-github"></i>repository</button></a>
+        <a class="issues-button"
+            href="https://github.com/mwiesenberger/advection/issues/new?title=Issue%20on%20page%20%2FOneDimensional.html&body=Your%20issue%20content%20here."><button
+                type="button" class="btn btn-secondary topbarbtn" data-toggle="tooltip" data-placement="left"
+                title="Open an issue"><i class="fas fa-lightbulb"></i>open issue</button></a>
+        
+    </div>
+</div>
+
+
+        <!-- Full screen (wrap in <a> to have style consistency -->
+        <a class="full-screen-button"><button type="button" class="btn btn-secondary topbarbtn" data-toggle="tooltip"
+                data-placement="bottom" onclick="toggleFullScreen()" aria-label="Fullscreen mode"
+                title="Fullscreen mode"><i
+                    class="fas fa-expand"></i></button></a>
+
+        <!-- Launch buttons -->
+
+<div class="dropdown-buttons-trigger">
+    <button id="dropdown-buttons-trigger" class="btn btn-secondary topbarbtn"
+        aria-label="Launch interactive content"><i class="fas fa-rocket"></i></button>
+    <div class="dropdown-buttons">
+        
+        <a class="binder-button" href="https://mybinder.org/v2/gh/mwiesenberger/advection/master?urlpath=tree/docs/OneDimensional.ipynb"><button type="button"
+                class="btn btn-secondary topbarbtn" title="Launch Binder" data-toggle="tooltip"
+                data-placement="left"><img class="binder-button-logo"
+                    src="_static/images/logo_binder.svg"
+                    alt="Interact on binder">Binder</button></a>
+        
+        
+        
+        
+    </div>
+</div>
+
+    </div>
+
+    <!-- Table of contents -->
+    <div class="d-none d-md-block col-md-2 bd-toc show">
+        
+        <div class="tocsection onthispage pt-5 pb-3">
+            <i class="fas fa-list"></i> Contents
+        </div>
+        <nav id="bd-toc-nav">
+            <ul class="nav section-nav flex-column">
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#advection-equation">
+   Advection equation
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#navier-stokes-equation">
+   Navier stokes equation
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#plasma-two-fluid-equations">
+   Plasma two-fluid equations
+  </a>
+  <ul class="nav section-nav flex-column">
+   <li class="toc-h3 nav-item toc-entry">
+    <a class="reference internal nav-link" href="#neutral-fluid-limit">
+     Neutral fluid limit
+    </a>
+   </li>
+   <li class="toc-h3 nav-item toc-entry">
+    <a class="reference internal nav-link" href="#adiabatic-electrons">
+     Adiabatic electrons
+    </a>
+   </li>
+  </ul>
+ </li>
+</ul>
+
+        </nav>
+        
+    </div>
+</div>
+    <div id="main-content" class="row">
+        <div class="col-12 col-md-9 pl-md-3 pr-md-0">
+        
+              <div>
+                
+  <div class="section" id="one-dimensional-hyperbolic-systems">
+<h1>One-dimensional hyperbolic systems<a class="headerlink" href="#one-dimensional-hyperbolic-systems" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="advection-equation">
+<h2>Advection equation<a class="headerlink" href="#advection-equation" title="Permalink to this headline">¶</a></h2>
+<p>First we are going to study the one-dimensional advection equation</p>
+<div class="amsmath math notranslate nohighlight" id="equation-69845acc-27fd-4283-af67-5ad87059fad2">
+<span class="eqno">(9)<a class="headerlink" href="#equation-69845acc-27fd-4283-af67-5ad87059fad2" title="Permalink to this equation">¶</a></span>\[\begin{align}
+     \frac{\partial }{\partial t} n= - a \frac{\partial}{\partial x} n 
+ \end{align}\]</div>
+<p>We are going to compare the first order upwind scheme with a centered differences scheme. Since forward in time centered in space is unconditionally unstable we add artificial diffusion to the latter.
+We discretize space with a cell-centered grid of <span class="math notranslate nohighlight">\(N_x\)</span> points on the domain <span class="math notranslate nohighlight">\([x_0,x_1]\)</span>.</p>
+<p>In time we use the Bogacki-Shampine adaptive method of order 3 (adaption of order 2).</p>
+<p>We use Neumann boundary conditions and as initial condition we use the classical problem of a step function</p>
+<div class="amsmath math notranslate nohighlight" id="equation-014e2df9-7c92-4cac-82f2-bf23719ba93a">
+<span class="eqno">(10)<a class="headerlink" href="#equation-014e2df9-7c92-4cac-82f2-bf23719ba93a" title="Permalink to this equation">¶</a></span>\[\begin{align}
+    n(x,0) = \begin{cases} 1 \text{ for } x &lt; x_a \\ 0 \text{ else}\end{cases}
+ \end{align}\]</div>
+<p>As an alternative initial condition we can choose a wave function</p>
+<div class="amsmath math notranslate nohighlight" id="equation-60941e68-ac64-4e8f-891f-a9f2f52a4b07">
+<span class="eqno">(11)<a class="headerlink" href="#equation-60941e68-ac64-4e8f-891f-a9f2f52a4b07" title="Permalink to this equation">¶</a></span>\[\begin{align}
+     n(x,0) = n_0 + A \sin( k(x-x_0))
+ \end{align}\]</div>
+<p>We also remark that the advection equation has a simple analytical
+solution</p>
+<div class="amsmath math notranslate nohighlight" id="equation-81bdd93b-5823-45bb-8d3e-bb347fd09359">
+<span class="eqno">(12)<a class="headerlink" href="#equation-81bdd93b-5823-45bb-8d3e-bb347fd09359" title="Permalink to this equation">¶</a></span>\[\begin{align}
+    n(x,t) = n(x-at, 0)
+\end{align}\]</div>
+<div class="cell tag_remove-input docutils container">
+</div>
+<p>As a first example we solve the continuity equation with the
+step function initial condition with various schemes</p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/OneDimensional_7_0.png" src="_images/OneDimensional_7_0.png" />
+</div>
+</div>
+<p>We find the expected results:</p>
+<ul class="simple">
+<li><p>the upwind scheme of first order does not produce oscillations and has inherent numerical diffusion</p></li>
+<li><p>the upwind scheme of 2nd order produces oscillations downstream</p></li>
+<li><p>the centered scheme without diffusion is unconditionally unstable and produces lots of oscillations</p></li>
+<li><p>only the first order upwind and the 2nd order schemes with diffusion produce smooth solutions</p></li>
+<li><p>adding the correct amount of numerical diffusion to the 2nd order schemes depends on the resolution</p></li>
+</ul>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<img alt="_images/OneDimensional_9_0.png" src="_images/OneDimensional_9_0.png" />
+</div>
+</div>
+<p>In the wave example we can see that</p>
+<ul class="simple">
+<li><p>the upwind scheme of 1st order has a lot of numerical diffusion (even more than the artificial diffusion)</p></li>
+<li><p>the schemes with diffusion are stable but they do not converge to the correct solution</p></li>
+<li><p>the 2nd order schemes seem to be stable without diffusion (which is a wrong conclusion as we know that centered differences are unstable, we conclude that the sine wave is not a good test function to test stability)</p></li>
+</ul>
+</div>
+<div class="section" id="navier-stokes-equation">
+<h2>Navier stokes equation<a class="headerlink" href="#navier-stokes-equation" title="Permalink to this headline">¶</a></h2>
+<p>We now turn to the one-dimensional compressional Navier-Stokes equation</p>
+<div class="amsmath math notranslate nohighlight" id="equation-9db23fc4-b9fb-4ddb-b2a6-e03a790d26ac">
+<span class="eqno">(13)<a class="headerlink" href="#equation-9db23fc4-b9fb-4ddb-b2a6-e03a790d26ac" title="Permalink to this equation">¶</a></span>\[\begin{align}
+     \frac{\partial }{\partial t} n&amp;= - \frac{\partial}{\partial x} (un ) + \nu_n\frac{\partial^2}{\partial x^2} n \\
+     \frac{\partial }{\partial t} nu&amp;= - \frac{\partial}{\partial x} nu^2 - \alpha\frac{\partial}{\partial x} n^\gamma + \nu_u\frac{\partial^2}{\partial x^2} u
+ \end{align}\]</div>
+<p>For <span class="math notranslate nohighlight">\(\gamma=1\)</span> and <span class="math notranslate nohighlight">\(\alpha=\tau\)</span> these are the equations for an ideal gas in 1d,
+while for <span class="math notranslate nohighlight">\(\gamma=2\)</span> and <span class="math notranslate nohighlight">\(\alpha=0.5g\)</span> we get the shallow water equations.</p>
+<p>A numerically particularly challenging initial condition is the Riemann problem</p>
+<div class="amsmath math notranslate nohighlight" id="equation-85bf6421-6d0c-492a-9773-a07a11582e89">
+<span class="eqno">(14)<a class="headerlink" href="#equation-85bf6421-6d0c-492a-9773-a07a11582e89" title="Permalink to this equation">¶</a></span>\[\begin{align}
+ n(x,0) = \begin{cases} n_l \text{ for } x &lt; x_a \\
+ n_r \text{ else}
+ \end{cases} \\
+ u(x,0) = \begin{cases} u_l \text{ for } x &lt; x_a \\
+u_r \text{ else}
+\end{cases}
+ \end{align}\]</div>
+<p>For <span class="math notranslate nohighlight">\(\gamma=1\)</span> this leads to Sod’s shock tube problem while for <span class="math notranslate nohighlight">\(\gamma=2\)</span> and <span class="math notranslate nohighlight">\(u_l = u_r = 0\)</span> we have
+a dam break over a dry/wet bed. Both these cases are widely discussed in the literature and have
+analytical solutions <a class="bibtex reference internal" href="References.html#delestre2013" id="id1">[DLK+13]</a> for the shallow water case.</p>
+<p>We intend to study various schemes to discretize these equations. We will start with the usual naive finite difference approximations on a <strong>collocated grid</strong>, where both density and velocity are discretized on the same cell-centres.
+We either use centered
+differences for all derivatives or an upwind scheme for the advection term in the continuity equation and Burger’s term (keeping centered differences for the
+wave terms <span class="math notranslate nohighlight">\(-n\partial_x u\)</span> and <span class="math notranslate nohighlight">\(-\alpha \partial_x n^\gamma\)</span>). These are the schemes that we used for our Feltor simulations in the past.</p>
+<p>A more robust approach is to use a so-called <strong>staggered grid</strong> discretization. This is a finite-volume type scheme and the
+basic idea is to shift the velocity grid by half a grid-point
+such that the density is given on cell-centres while the velocity
+is given on the faces.
+Of the staggered discretizations, a particularly robust one seems
+to be the one presented in <a class="bibtex reference internal" href="References.html#herbin2013" id="id2">[HLatcheN13]</a> and the PhD thesis of <a class="bibtex reference internal" href="References.html#gunawan2015" id="id3">[Gun15]</a> where favourable qualities are shown:</p>
+<ul class="simple">
+<li><p>it is <strong>positivity preserving</strong></p></li>
+<li><p>it is shown to satisfy an <strong>entropy inequality</strong></p></li>
+<li><p>it is <strong>shock-capturing</strong></p></li>
+</ul>
+<p>The defining features of the scheme is that the pressure term <span class="math notranslate nohighlight">\(\alpha\partial_x n^\gamma\)</span> in the momentum equation is discretized
+implicitly and that the momenum form is discretized instead of the velocity formulation. This makes the scheme <strong>semi-implicit</strong>, however the
+implicit equation can be trivially solved since the density and momentum equations decouple.</p>
+<p>We study various variations of the scheme including taking the pressure term explicitly and discretizing the velocity form.</p>
+<div class="amsmath math notranslate nohighlight" id="equation-8b749be9-836a-4b8e-be1c-3237e25e27ba">
+<span class="eqno">(15)<a class="headerlink" href="#equation-8b749be9-836a-4b8e-be1c-3237e25e27ba" title="Permalink to this equation">¶</a></span>\[\begin{align}
+     \frac{\partial }{\partial t} u&amp;= - \frac{\partial}{\partial x} \frac{u^2}{2} - \alpha n^{-1}\frac{\partial}{\partial x} n^\gamma + \nu_un^{-1}\frac{\partial^2}{\partial x^2} u
+\end{align}\]</div>
+<p>There
+is also a 2nd order formulation using a <strong>slope-limiter</strong> proposed in <a class="bibtex reference internal" href="References.html#gunawan2015" id="id4">[Gun15]</a>, which however might be closer to a flux-limter in fact.</p>
+<p>As a first example we study the dam break over a dry bed without viscosity</p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>L2 Error norm is 0.003432017556849239  0.011872511687520466
+Timesteps for staggered original is 12845.0
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>L2 Error norm is 0.0009797106735031029  0.00496257128066188
+Timesteps for staggered slope-limiter is 15385.0
+</pre></div>
+</div>
+<img alt="_images/OneDimensional_16_2.png" src="_images/OneDimensional_16_2.png" />
+</div>
+</div>
+<ul class="simple">
+<li><p>the original schemes of 1st and 2nd order converge to the correct solution as advertised</p></li>
+</ul>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>L2 Error norm is 0.003432114919925413  0.011872655472057283
+Timesteps for staggered explicit is 20224.0
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>L2 Error norm is 0.0009798384249787998  0.004963092098361188
+Timesteps for staggered slope-limiter-explicit is 25724.0
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>L2 Error norm is 0.025272087713320616  0.08742852957511606
+Timesteps for velocity-staggered explicit is 23505.0
+L2 Error norm is 0.01905381826559111  0.07438139021783371
+Timesteps for upwind is 18459.0
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>L2 Error norm is 0.019093938425930587  0.07294307772377516
+Timesteps for upwind2 is 20948.0
+</pre></div>
+</div>
+<img alt="_images/OneDimensional_18_4.png" src="_images/OneDimensional_18_4.png" />
+</div>
+</div>
+<p>We see that even with very high resolution</p>
+<ul class="simple">
+<li><p>the explicit staggered schemes converge to the correct solution as well contradicting the literature; we are unable to reproduce Figure 1.6 in Gunawan’s thesis (even after trying to use fixed-step Euler scheme in order to exclude effects from the different timestepper we use)</p></li>
+<li><p>the upwind and velocity-staggered schemes both do not converge to the analytic solution</p></li>
+</ul>
+<p>Now we initialize a plane wave in the density and zero velocity. We observe the formation of shocks. Due to Burger’s term the wave crest travels faster than the valley. We investigate the addition of a small viscosity.
+Since we do not have an analytical solution we treat a high resolution staggered scheme as the true solution:</p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Timesteps for staggered is 90120.0
+Timesteps for staggered slope-limiter-explicit is 49906.0
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Timesteps for velocity-staggered explicit is 44577.0
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Timesteps for staggered slppe-limiter is 43798.0
+Timesteps for upwind is 31852.0
+</pre></div>
+</div>
+<img alt="_images/OneDimensional_22_3.png" src="_images/OneDimensional_22_3.png" />
+</div>
+</div>
+<p>We observe that</p>
+<ul class="simple">
+<li><p>shocks can form due to burgers term (the wave top moves faster than the wave bottom, steepening the front)</p></li>
+<li><p>surprisingly the collocated-upwind scheme is off by quite a bit for the low resolution ( but gets closer for higher resolution and higher viscosity)</p></li>
+<li><p>for very high resolution (Nx = 1000) all schemes coincide (not shown)</p></li>
+<li><p>if the viscosity is too small the centered scheme cannot compete (not shown in plot but it is far off)</p></li>
+<li><p>for the low resolution (Nx = 100) the velocity-staggered scheme seems qualitatively to behave as the staggered schemes, also in the entropy conservation, except for a slightly too large density</p></li>
+</ul>
+</div>
+<div class="section" id="plasma-two-fluid-equations">
+<h2>Plasma two-fluid equations<a class="headerlink" href="#plasma-two-fluid-equations" title="Permalink to this headline">¶</a></h2>
+<p>As a next step we investigate the two-fluid equations (also known as two-fluid Euler-Poisson system)</p>
+<div class="amsmath math notranslate nohighlight" id="equation-2814143c-4c65-45db-913d-d52bbca58222">
+<span class="eqno">(16)<a class="headerlink" href="#equation-2814143c-4c65-45db-913d-d52bbca58222" title="Permalink to this equation">¶</a></span>\[\begin{align}
+     \frac{\partial }{\partial t} n_e&amp;= - \frac{\partial}{\partial x} (u_en_e )  + S_{n} \\
+     \frac{\partial }{\partial t} n_i&amp;= - \frac{\partial}{\partial x} (u_in_i )  + S_{n} \\   
+    \frac{\partial }{\partial t} n_eu_e&amp;= - \frac{\partial}{\partial x} n_eu_e^2 - \frac{\tau_e}{\mu_e}\frac{\partial}{\partial x} n_e - \frac{1}{\mu_e} n_e\frac{\partial}{\partial x} \phi - \frac{\eta}{\mu_e} n_i (n_i u_i - n_e u_e) + \nu_{u,e}\frac{\partial^2}{\partial x^2} u_e\\
+     \frac{\partial }{\partial t} n_iu_i&amp;= - \frac{\partial}{\partial x} n_iu_i^2 - \frac{\tau_i}{\mu_i}\frac{\partial}{\partial x} n_i - \frac{1}{\mu_i}n_i\frac{\partial}{\partial x} \phi - \frac{\eta}{\mu_i} n_i (n_i u_i - n_e u_e) + \nu_{u,i}\frac{\partial^2}{\partial x^2} u_i
+ \end{align}\]</div>
+<p>which is closed by the one-dimensional Poisson equation</p>
+<div class="amsmath math notranslate nohighlight" id="equation-8f8b5f19-2999-40af-8bd0-df3d05cde9f1">
+<span class="eqno">(17)<a class="headerlink" href="#equation-8f8b5f19-2999-40af-8bd0-df3d05cde9f1" title="Permalink to this equation">¶</a></span>\[\begin{align}
+ -\frac{\partial^2}{\partial x^2} \phi = \frac{n_i - n_e}{\epsilon_D}
+ \end{align}\]</div>
+<p>where we have Gyro-Bohm normalization and <span class="math notranslate nohighlight">\(\mu_e = -m_e/m_i\)</span>, <span class="math notranslate nohighlight">\(\mu_i = 1\)</span>, <span class="math notranslate nohighlight">\(\tau_e = -1\)</span> and <span class="math notranslate nohighlight">\(\tau_i = T_i / T_e\)</span>. Further,
+we have <span class="math notranslate nohighlight">\(\eta = 0.51 \nu_{ei,0}/ \Omega_{ce}\)</span> and <span class="math notranslate nohighlight">\(\nu_{u,e} = 0.73
+ \Omega_{ce} / \nu_{ei,0}\)</span> and <span class="math notranslate nohighlight">\(\nu_{u,i} = 0.96 \Omega_{ci} / \nu_{ii,0}\)</span>. Last, we have the Debye parameter <span class="math notranslate nohighlight">\(\epsilon_D = \lambda_D^2 / \rho_s^2\)</span> with the Debye length <span class="math notranslate nohighlight">\(\lambda_D\)</span> and the
+ion gyro-radius at electron temperature <span class="math notranslate nohighlight">\(\rho_s\)</span>. Note that we choose the peculiar signs in <span class="math notranslate nohighlight">\(\mu_e\)</span> and <span class="math notranslate nohighlight">\(\tau_e\)</span> such that the electron and ion momentum equations have exactly the same form, which makes it easy to implement.</p>
+<p>Also note that we choose Bohm normalization based on gyro-radius <span class="math notranslate nohighlight">\(\rho_s\)</span> and gyro-frequency <span class="math notranslate nohighlight">\(\Omega_{ci}\)</span>  because this is how we normalize the three-dimensional model. However, there is no magnetic field in the model and so the gyration does not appear. The more natural normalisation uses plasma frequency and Debye length, which makes the <span class="math notranslate nohighlight">\(\epsilon_D\)</span> parameter disappear <a class="bibtex reference internal" href="References.html#sack1987" id="id5">[SS87]</a>.</p>
+<p>The spatial domain is given by
+<span class="math notranslate nohighlight">\([-L_\parallel /2 ; L_\parallel/2]\)</span>, where <span class="math notranslate nohighlight">\(L_\parallel = 2\pi q R_0\)</span> with <span class="math notranslate nohighlight">\(q=3\)</span> and <span class="math notranslate nohighlight">\(R_0=0.545\)</span>m approximating the length of a fieldline from divertor to divertor in the Compass SOL. We use <span class="math notranslate nohighlight">\(N_x\)</span> points.</p>
+<div class="section" id="neutral-fluid-limit">
+<h3>Neutral fluid limit<a class="headerlink" href="#neutral-fluid-limit" title="Permalink to this headline">¶</a></h3>
+<p>We reach the limit of Navier Stokes fluid equations by first setting
+<span class="math notranslate nohighlight">\(\mu_e = 0\)</span>. Then we find from the electron momentum equation <span class="math notranslate nohighlight">\(-\tau_e \partial_x n_e - n_e\partial_x \phi - \eta n_e j = 0\)</span>, which
+yields the force term <span class="math notranslate nohighlight">\(-\tau_i \partial_x n_i + \tau_e \partial_x n_i + \tau_e \epsilon_D \partial_x^3 \phi + \epsilon_D \partial_x (\partial_x \phi)^2 / 2 \)</span> in the ion momentum equation. In the limit <span class="math notranslate nohighlight">\(\epsilon_D=0\)</span> the
+ion continuity and ion momentum equations thus decouple from the system and yield the Navier Stokes equations.</p>
+</div>
+<div class="section" id="adiabatic-electrons">
+<h3>Adiabatic electrons<a class="headerlink" href="#adiabatic-electrons" title="Permalink to this headline">¶</a></h3>
+<p>In the limit of <span class="math notranslate nohighlight">\(\mu_e=0\)</span> and vanishing resistivity <span class="math notranslate nohighlight">\(\eta =0\)</span>
+the electron force balance reduces to <span class="math notranslate nohighlight">\(\partial_x n_e = n_e \partial_x\phi\)</span> which is solved by <span class="math notranslate nohighlight">\(n_e = n_{e,0}\exp(\phi)\)</span>.</p>
+<div class="amsmath math notranslate nohighlight" id="equation-ba22d0d9-236a-49e4-9fbb-9fce7844d986">
+<span class="eqno">(18)<a class="headerlink" href="#equation-ba22d0d9-236a-49e4-9fbb-9fce7844d986" title="Permalink to this equation">¶</a></span>\[\begin{align}
+     \frac{\partial }{\partial t} n_i&amp;= - \frac{\partial}{\partial x} (u_in_i ) + S_{n} \\   
+     \frac{\partial }{\partial t} n_iu_i&amp;= - \frac{\partial}{\partial x} n_iu_i^2 - \tau_i\frac{\partial}{\partial x} n_i - n_i\frac{\partial}{\partial x} \phi + \nu_{u,i}\frac{\partial^2}{\partial x^2} u_i
+ \end{align}\]</div>
+<p>which is closed by the one-dimensional non-linear Poisson   equation (choosing <span class="math notranslate nohighlight">\(n_{e,0}=1\)</span>)</p>
+<div class="amsmath math notranslate nohighlight" id="equation-64c76935-f12e-4565-a02e-7e327156bebc">
+<span class="eqno">(19)<a class="headerlink" href="#equation-64c76935-f12e-4565-a02e-7e327156bebc" title="Permalink to this equation">¶</a></span>\[\begin{align}
+ -\frac{\partial^2}{\partial x^2} \phi = \frac{n_i - \exp(\phi)}{\epsilon_D}
+ \end{align}\]</div>
+<p>First, we simulate the full plasma two-fluid system.</p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Timesteps for staggered original is 725.0
+</pre></div>
+</div>
+<img alt="_images/OneDimensional_33_1.png" src="_images/OneDimensional_33_1.png" />
+</div>
+</div>
+<p>We observe</p>
+<ul class="simple">
+<li><p>steps in the potential</p></li>
+<li><p>oscillations in the electron velocity and electric field indicating rapid plasma oscillations</p></li>
+</ul>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Timesteps for staggered slope-limiter is 20552.0
+</pre></div>
+</div>
+<img alt="_images/OneDimensional_35_1.png" src="_images/OneDimensional_35_1.png" />
+</div>
+</div>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>staggered original 100 5.580296254580168e-05	0.023195936061266877	0.002575918155506441
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>staggered original 200 2.8282088300430025e-05	0.011705288819374821	0.0011112195383459545
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>staggered original 400 1.4233827548520823e-05	0.005877695490863391	0.0005277675970782922
+staggered slope-limiter 100 1.090675926467633e-05	0.001976291856643779	0.001339650743226408
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>staggered slope-limiter 200 2.727761445330482e-06	0.0004996362259588693	0.00033494442001343896
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>staggered slope-limiter 400 6.808894613093873e-07	0.0001251456288766868	8.376258715632446e-05
+staggered slope-limiter-explicit 100 1.0905408903246603e-05	0.001972221786447545	0.0013370735038095336
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>staggered slope-limiter-explicit 200 2.7259884698560088e-06	0.0004987128193436745	0.00033426421736756337
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>staggered slope-limiter-explicit 400 6.782599516324007e-07	0.00012512265402499096	8.355670477792765e-05
+centered 100 2.8162603120836513e-06	0.002525936373990322	0.006341152712926746
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>centered 200 7.068546265656482e-07	0.0006277146840703361	0.0015818941194588863
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>centered 400 1.769526754020677e-07	0.00015676610885135612	0.00039538234986413485
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            kernelName: "python3",
+            path: "./."
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+              </div>
+              
+        </div>
+    </div>
+    
+    
+    <div class='prev-next-bottom'>
+        
+    <a class='left-prev' id="prev-link" href="convergence.html" title="previous page">Convergence of upwind scheme</a>
+    <a class='right-next' id="next-link" href="References.html" title="next page">References</a>
+
+    </div>
+    <footer class="footer mt-5 mt-md-0">
+    <div class="container">
+      <p>
+        
+          By Matthias Wiesenberger<br/>
+        
+            &copy; Copyright 2020.<br/>
+      </p>
+    </div>
+  </footer>
+</main>
+
+
+      </div>
+    </div>
+
+    
+  <script src="_static/js/index.d3f166471bb80abb5163.js"></script>
+
+
+    
+  </body>
+</html>

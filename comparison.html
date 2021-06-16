@@ -100,6 +100,16 @@
    Convergence of upwind scheme
   </a>
  </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="OneDimensional.html">
+   One-dimensional hyperbolic systems
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="References.html">
+   References
+  </a>
+ </li>
 </ul>
 
 </nav> <!-- To handle the deprecated key -->
@@ -273,6 +283,11 @@
    Conclusions
   </a>
  </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#timesteppers">
+   Timesteppers
+  </a>
+ </li>
 </ul>
 
         </nav>
@@ -305,22 +320,22 @@ Since our simulations operate at the limit of our available HPC resources simply
 <div class="section" id="a-simple-test-scenario">
 <h2>A simple test scenario<a class="headerlink" href="#a-simple-test-scenario" title="Permalink to this headline">¶</a></h2>
 <p>We consider the 2d incompressible Euler equations</p>
-<div class="amsmath math notranslate nohighlight" id="equation-79f104b6-8245-40d8-a5fa-05471397b1df">
-<span class="eqno">(1)<a class="headerlink" href="#equation-79f104b6-8245-40d8-a5fa-05471397b1df" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-5f30abca-d14c-449e-b679-377f0ebe25c8">
+<span class="eqno">(1)<a class="headerlink" href="#equation-5f30abca-d14c-449e-b679-377f0ebe25c8" title="Permalink to this equation">¶</a></span>\[\begin{align}
     \frac{\partial \omega}{\partial t} + \nabla\cdot({\vec v \omega}) = 0 \nonumber\\
 \omega = - \Delta\phi \quad v_x = - \phi_y \quad v_y = \phi_x
 \end{align}\]</div>
 <p>with vorticity <span class="math notranslate nohighlight">\(\omega\)</span> and stream-function <span class="math notranslate nohighlight">\(\phi\)</span>. The Euler equations have an infinite amount of conserved quantities
 among them the total vorticity <span class="math notranslate nohighlight">\(V\)</span>, the kinetic energy <span class="math notranslate nohighlight">\(E\)</span> and the enstrophy <span class="math notranslate nohighlight">\(\Omega\)</span></p>
-<div class="amsmath math notranslate nohighlight" id="equation-c3e1bfa4-d577-43b0-86ef-7803c3887edc">
-<span class="eqno">(2)<a class="headerlink" href="#equation-c3e1bfa4-d577-43b0-86ef-7803c3887edc" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-ae290ea9-d022-4493-a22e-27c59f770d5b">
+<span class="eqno">(2)<a class="headerlink" href="#equation-ae290ea9-d022-4493-a22e-27c59f770d5b" title="Permalink to this equation">¶</a></span>\[\begin{align}
      V := \int_D \omega \mathrm{d}A\quad
      E :=\frac{1}{2} \int_D \left( \nabla \phi\right)^2 \mathrm{d}A \quad
      \Omega_n:= \frac{1}{2} \int_D \omega^{2n }\mathrm{d}A
  \end{align}\]</div>
 <p>Often, these invariants are taken as a measure of quality of the integrator. We define a relative error in these quantities as</p>
-<div class="amsmath math notranslate nohighlight" id="equation-74933f5b-9c14-4222-990d-450024b9eef9">
-<span class="eqno">(3)<a class="headerlink" href="#equation-74933f5b-9c14-4222-990d-450024b9eef9" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-8b191d95-1034-47fb-a891-9abf30750200">
+<span class="eqno">(3)<a class="headerlink" href="#equation-8b191d95-1034-47fb-a891-9abf30750200" title="Permalink to this equation">¶</a></span>\[\begin{align}
     \varepsilon_q = \frac{q(T_{end}) - q(T_0)}{q(T_0)}
 \end{align}\]</div>
 </div>
@@ -329,13 +344,13 @@ among them the total vorticity <span class="math notranslate nohighlight">\(V\)<
 <p>We initialize a double shear layer and pose boundary conditions: <strong>periodic in x, Dirichlet in y</strong></p>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_9_0.png" src="_images/comparison_9_0.png" />
+<img alt="_images/comparison_10_0.png" src="_images/comparison_10_0.png" />
 </div>
 </div>
 <p>We will then integrate the solution from <span class="math notranslate nohighlight">\(t=0\)</span> to <span class="math notranslate nohighlight">\(t=10\)</span> using various methods. The expected result is</p>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_11_0.png" src="_images/comparison_11_0.png" />
+<img alt="_images/comparison_12_0.png" src="_images/comparison_12_0.png" />
 </div>
 </div>
 <p>The solution quickly rolls up and generates small fine vorticity lines that are more and more difficult to resolve by the numerical scheme. In the following we test various schemes to solve this equation and</p>
@@ -347,37 +362,22 @@ among them the total vorticity <span class="math notranslate nohighlight">\(V\)<
 <div class="section" id="a-naive-approach">
 <h2>A naive approach<a class="headerlink" href="#a-naive-approach" title="Permalink to this headline">¶</a></h2>
 <p>The first approach to discretize is to simply use centered differences (or the dG analogue) for the flux</p>
-<div class="amsmath math notranslate nohighlight" id="equation-6aa04434-8bf1-4be6-a73d-48960f26b6ac">
-<span class="eqno">(4)<a class="headerlink" href="#equation-6aa04434-8bf1-4be6-a73d-48960f26b6ac" title="Permalink to this equation">¶</a></span>\[\begin{align} 
+<div class="amsmath math notranslate nohighlight" id="equation-2ee2f64b-2d07-4e20-a1e2-d0d1fec0fd70">
+<span class="eqno">(4)<a class="headerlink" href="#equation-2ee2f64b-2d07-4e20-a1e2-d0d1fec0fd70" title="Permalink to this equation">¶</a></span>\[\begin{align} 
 \frac{\partial}{\partial x} f \rightarrow \frac{f_{i+1}-f_{i-1}}{2h_x}
 \end{align}\]</div>
 <p>It is well known that the forward in time, centered in space method for solving
-hyperbolic systems is <strong>unconditionally unstable</strong> <a class="bibtex reference internal" href="#leveque" id="id1">[LeV02]</a>.
-Reference <a class="bibtex reference internal" href="#liu2000" id="id2">[LS00]</a> reports that the centered flux does not have any numerical
+hyperbolic systems is <strong>unconditionally unstable</strong> <span class="bibtex" id="id1">[LeVeque]</span>.
+Reference <span class="bibtex" id="id2">[Liu2000]</span> reports that the centered flux does not have any numerical
 diffusion while the upwind flux does.
 They also prove that upwind and centered fluxes do not dissipate energy.</p>
-<p id="bibtex-bibliography-comparison-0"><dl class="citation">
-<dt class="bibtex label" id="einkemmer2014"><span class="brackets"><a class="fn-backref" href="#id3">EW14</a></span></dt>
-<dd><p>L. Einkemmer and M. Wiesenberger. A conservative discontinuous galerkin scheme for the 2d incompressible navier–stokes equations. <em>Comput. Phys. Commun.</em>, 185(11):2865–2873, 2014. <a class="reference external" href="https://doi.org/10.1016/j.cpc.2014.07.007">doi:10.1016/j.cpc.2014.07.007</a>.</p>
-</dd>
-<dt class="bibtex label" id="nodaldg"><span class="brackets">HW08</span><span class="fn-backref">(<a href="#id4">1</a>,<a href="#id5">2</a>,<a href="#id6">3</a>)</span></dt>
-<dd><p>J.S. Hesthaven and T. Warburton. <em>Nodal discontinuous Galerkin methods: algorithms, analysis, and applications</em>. Texts in Applied Mathematics. Springer Media, 2008.</p>
-</dd>
-<dt class="bibtex label" id="leveque"><span class="brackets"><a class="fn-backref" href="#id1">LeV02</a></span></dt>
-<dd><p>R.J. LeVeque. <em>Finite Volume Methods for Hyperbolic Problems</em>. Cambridge Texts in Applied Mathematics. Cambridge University Press, 2002.</p>
-</dd>
-<dt class="bibtex label" id="liu2000"><span class="brackets"><a class="fn-backref" href="#id2">LS00</a></span></dt>
-<dd><p>J.G. Liu and C.W. Shu. A high-order discontinuous galerkin method for 2d incompressible flows. <em>J. Comput. Phys.</em>, 160:557–596, 2000. <a class="reference external" href="https://doi.org/10.1006/jcph.2000.6475">doi:10.1006/jcph.2000.6475</a>.</p>
-</dd>
-</dl>
-</p>
 <blockquote>
 <div><p>We run all simulations on a GeForce GTX 1660-Ti</p>
 </div></blockquote>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_13_0.png" src="_images/comparison_13_0.png" />
-<img alt="_images/comparison_13_1.png" src="_images/comparison_13_1.png" />
+<img alt="_images/comparison_14_0.png" src="_images/comparison_14_0.png" />
+<img alt="_images/comparison_14_1.png" src="_images/comparison_14_1.png" />
 </div>
 </div>
 <p>We observe that</p>
@@ -388,11 +388,11 @@ They also prove that upwind and centered fluxes do not dissipate energy.</p>
 </div>
 <div class="section" id="arakawa">
 <h2>Arakawa<a class="headerlink" href="#arakawa" title="Permalink to this headline">¶</a></h2>
-<p>The Arakawa scheme was generalized for dG methods in <a class="bibtex reference internal" href="#einkemmer2014" id="id3">[EW14]</a> and is a method that conserves vorticity, energy and enstrophy exactly. Just as for the centered differences it is well-known that the scheme produces oscillations without a diffusive term.</p>
+<p>The Arakawa scheme was generalized for dG methods in <span class="bibtex" id="id3">[Einkemmer2014]</span> and is a method that conserves vorticity, energy and enstrophy exactly. Just as for the centered differences it is well-known that the scheme produces oscillations without a diffusive term.</p>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_15_0.png" src="_images/comparison_15_0.png" />
-<img alt="_images/comparison_15_1.png" src="_images/comparison_15_1.png" />
+<img alt="_images/comparison_16_0.png" src="_images/comparison_16_0.png" />
+<img alt="_images/comparison_16_1.png" src="_images/comparison_16_1.png" />
 </div>
 </div>
 <ul class="simple">
@@ -403,8 +403,8 @@ They also prove that upwind and centered fluxes do not dissipate energy.</p>
 <div class="section" id="upwind-scheme">
 <h2>Upwind scheme<a class="headerlink" href="#upwind-scheme" title="Permalink to this headline">¶</a></h2>
 <p>The idea of an upwind scheme is to use either a forward or a backward discretization of the flux <span class="math notranslate nohighlight">\(f=\omega v\)</span> depending on the sign of the velocity</p>
-<div class="amsmath math notranslate nohighlight" id="equation-82d13686-0bdc-42f7-a788-5fd4d110b124">
-<span class="eqno">(5)<a class="headerlink" href="#equation-82d13686-0bdc-42f7-a788-5fd4d110b124" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-f9801062-2c6b-4f00-b80d-5921c09e73b2">
+<span class="eqno">(5)<a class="headerlink" href="#equation-f9801062-2c6b-4f00-b80d-5921c09e73b2" title="Permalink to this equation">¶</a></span>\[\begin{align}
 \frac{\partial}{\partial x} f \rightarrow \begin{cases}
     \frac{f_{i} - f_{i-1}}{h} \text{ if } v \geq 0 \\
      \frac{f_{i+1}-f_i}{h}    \text{  if } v &lt; 0
@@ -412,9 +412,9 @@ They also prove that upwind and centered fluxes do not dissipate energy.</p>
 \end{align}\]</div>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_17_0.png" src="_images/comparison_17_0.png" />
-<img alt="_images/comparison_17_1.png" src="_images/comparison_17_1.png" />
-<img alt="_images/comparison_17_2.png" src="_images/comparison_17_2.png" />
+<img alt="_images/comparison_18_0.png" src="_images/comparison_18_0.png" />
+<img alt="_images/comparison_18_1.png" src="_images/comparison_18_1.png" />
+<img alt="_images/comparison_18_2.png" src="_images/comparison_18_2.png" />
 </div>
 </div>
 <ul class="simple">
@@ -424,12 +424,12 @@ They also prove that upwind and centered fluxes do not dissipate energy.</p>
 </div>
 <div class="section" id="correct-multiplication-of-dg-polynomials">
 <h2>Correct multiplication of dG polynomials<a class="headerlink" href="#correct-multiplication-of-dg-polynomials" title="Permalink to this headline">¶</a></h2>
-<p>In the computation of the flux <span class="math notranslate nohighlight">\(n v\)</span> the approach that we used above (termed <strong>pointwise</strong>) was to simply compute the pointwise multiplication of the nodal discretization <a class="bibtex reference internal" href="#nodaldg" id="id4">[HW08]</a>. However, the correct approach when multiplying
-two dG discretized functions is to interpolate both onto a  higher degree polynomial (of degree <span class="math notranslate nohighlight">\(2n\)</span>) and then projecting the result back unto the lower degree polynomial <span class="math notranslate nohighlight">\(n\)</span>). We call this the <strong>projection</strong> method <a class="bibtex reference internal" href="#nodaldg" id="id5">[HW08]</a>.</p>
+<p>In the computation of the flux <span class="math notranslate nohighlight">\(n v\)</span> the approach that we used above (termed <strong>pointwise</strong>) was to simply compute the pointwise multiplication of the nodal discretization <span class="bibtex" id="id4">[NodalDG]</span>. However, the correct approach when multiplying
+two dG discretized functions is to interpolate both onto a  higher degree polynomial (of degree <span class="math notranslate nohighlight">\(2n\)</span>) and then projecting the result back unto the lower degree polynomial <span class="math notranslate nohighlight">\(n\)</span>). We call this the <strong>projection</strong> method <span class="bibtex" id="id5">[NodalDG]</span>.</p>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_19_0.png" src="_images/comparison_19_0.png" />
-<img alt="_images/comparison_19_1.png" src="_images/comparison_19_1.png" />
+<img alt="_images/comparison_20_0.png" src="_images/comparison_20_0.png" />
+<img alt="_images/comparison_20_1.png" src="_images/comparison_20_1.png" />
 </div>
 </div>
 <ul class="simple">
@@ -441,16 +441,16 @@ two dG discretized functions is to interpolate both onto a  higher degree polyno
 <div class="section" id="upwind-advection">
 <h2>Upwind advection<a class="headerlink" href="#upwind-advection" title="Permalink to this headline">¶</a></h2>
 <p>As a last result we use the upwind dG scheme on the advection equation, which is possible with <span class="math notranslate nohighlight">\(\nabla \cdot \vec v = 0\)</span>:</p>
-<div class="amsmath math notranslate nohighlight" id="equation-339b3487-b6a1-4889-9da5-8a2addf774b0">
-<span class="eqno">(6)<a class="headerlink" href="#equation-339b3487-b6a1-4889-9da5-8a2addf774b0" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-765c269c-5b36-4a3d-beb2-107e1ee57a69">
+<span class="eqno">(6)<a class="headerlink" href="#equation-765c269c-5b36-4a3d-beb2-107e1ee57a69" title="Permalink to this equation">¶</a></span>\[\begin{align}
     \frac{\partial \omega}{\partial t} + \vec v\cdot\nabla \omega = 0 \\
     -\Delta\phi = \omega \quad v_x = -\phi_y \quad v_y = \phi_x
 \end{align}\]</div>
 <p>instead of the conservation equation:</p>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_21_0.png" src="_images/comparison_21_0.png" />
-<img alt="_images/comparison_21_1.png" src="_images/comparison_21_1.png" />
+<img alt="_images/comparison_22_0.png" src="_images/comparison_22_0.png" />
+<img alt="_images/comparison_22_1.png" src="_images/comparison_22_1.png" />
 </div>
 </div>
 <ul class="simple">
@@ -460,10 +460,10 @@ two dG discretized functions is to interpolate both onto a  higher degree polyno
 </div>
 <div class="section" id="modal-filtering">
 <h2>Modal filtering<a class="headerlink" href="#modal-filtering" title="Permalink to this headline">¶</a></h2>
-<p>In <a class="bibtex reference internal" href="#nodaldg" id="id6">[HW08]</a> an alternative to the projection method was suggested to stabilize dG methods. The modal filter can be thought of as a de-aliasing technique for dG methods and is thought to be an alternative to artificial diffusion techniques.
+<p>In <span class="bibtex" id="id6">[NodalDG]</span> an alternative to the projection method was suggested to stabilize dG methods. The modal filter can be thought of as a de-aliasing technique for dG methods and is thought to be an alternative to artificial diffusion techniques.
 The technique consists in applying the filter <span class="math notranslate nohighlight">\(f(\eta)\)</span> to each mode <span class="math notranslate nohighlight">\(\eta\)</span> after every timestep</p>
-<div class="amsmath math notranslate nohighlight" id="equation-606e1e6a-1b02-4220-94b7-0ec4284f2611">
-<span class="eqno">(7)<a class="headerlink" href="#equation-606e1e6a-1b02-4220-94b7-0ec4284f2611" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-c5225030-875b-49b5-baeb-e3194aa1f97e">
+<span class="eqno">(7)<a class="headerlink" href="#equation-c5225030-875b-49b5-baeb-e3194aa1f97e" title="Permalink to this equation">¶</a></span>\[\begin{align}
 \omega_\eta^{n+1} = f(\eta) \omega_\eta^n
 \end{align}\]</div>
 <p>We experiment with the exponential filter shown in the next graph</p>
@@ -471,8 +471,8 @@ The technique consists in applying the filter <span class="math notranslate nohi
 <p>First, let us try to apply the filter to the upwind scheme with pointwise multiplication (as was originally suggested)</p>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_24_0.png" src="_images/comparison_24_0.png" />
-<img alt="_images/comparison_24_1.png" src="_images/comparison_24_1.png" />
+<img alt="_images/comparison_25_0.png" src="_images/comparison_25_0.png" />
+<img alt="_images/comparison_25_1.png" src="_images/comparison_25_1.png" />
 </div>
 </div>
 <ul class="simple">
@@ -485,9 +485,9 @@ The technique consists in applying the filter <span class="math notranslate nohi
 <h2>Modal filter on the Arakawa scheme<a class="headerlink" href="#modal-filter-on-the-arakawa-scheme" title="Permalink to this headline">¶</a></h2>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_26_0.png" src="_images/comparison_26_0.png" />
-<img alt="_images/comparison_26_1.png" src="_images/comparison_26_1.png" />
-<img alt="_images/comparison_26_2.png" src="_images/comparison_26_2.png" />
+<img alt="_images/comparison_27_0.png" src="_images/comparison_27_0.png" />
+<img alt="_images/comparison_27_1.png" src="_images/comparison_27_1.png" />
+<img alt="_images/comparison_27_2.png" src="_images/comparison_27_2.png" />
 </div>
 </div>
 <ul class="simple">
@@ -500,8 +500,8 @@ The technique consists in applying the filter <span class="math notranslate nohi
 <div class="section" id="viscosity-and-hyperviscosity">
 <h2>Viscosity and hyperviscosity<a class="headerlink" href="#viscosity-and-hyperviscosity" title="Permalink to this headline">¶</a></h2>
 <p>In order to make the centered and Arakawa discretization stable, it is common to add artificial viscosity terms to the equations</p>
-<div class="amsmath math notranslate nohighlight" id="equation-7be1800c-76b6-4b47-910b-c6378c362378">
-<span class="eqno">(8)<a class="headerlink" href="#equation-7be1800c-76b6-4b47-910b-c6378c362378" title="Permalink to this equation">¶</a></span>\[\begin{align}
+<div class="amsmath math notranslate nohighlight" id="equation-ed2974bb-a04f-4791-b583-65d6969663e6">
+<span class="eqno">(8)<a class="headerlink" href="#equation-ed2974bb-a04f-4791-b583-65d6969663e6" title="Permalink to this equation">¶</a></span>\[\begin{align}
  \frac{\partial}{\partial t} + \nabla \cdot ( \omega \vec v) = - (-\nu \Delta)^s \omega
  \end{align}\]</div>
 <p>where <span class="math notranslate nohighlight">\(s=1,2,...\)</span> is the order. This technique clearly destroys the exact energy
@@ -519,16 +519,16 @@ We now want to show that</p>
 <p><em>(in order to compare the various plots it is recommended to open the book twice in two different browser windows)</em></p>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_29_0.png" src="_images/comparison_29_0.png" />
-<img alt="_images/comparison_29_1.png" src="_images/comparison_29_1.png" />
-<img alt="_images/comparison_29_2.png" src="_images/comparison_29_2.png" />
+<img alt="_images/comparison_30_0.png" src="_images/comparison_30_0.png" />
+<img alt="_images/comparison_30_1.png" src="_images/comparison_30_1.png" />
+<img alt="_images/comparison_30_2.png" src="_images/comparison_30_2.png" />
 </div>
 </div>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_30_0.png" src="_images/comparison_30_0.png" />
-<img alt="_images/comparison_30_1.png" src="_images/comparison_30_1.png" />
-<img alt="_images/comparison_30_2.png" src="_images/comparison_30_2.png" />
+<img alt="_images/comparison_31_0.png" src="_images/comparison_31_0.png" />
+<img alt="_images/comparison_31_1.png" src="_images/comparison_31_1.png" />
+<img alt="_images/comparison_31_2.png" src="_images/comparison_31_2.png" />
 </div>
 </div>
 <ul class="simple">
@@ -539,16 +539,16 @@ We now want to show that</p>
 <h2>Order 2 artificial viscosity<a class="headerlink" href="#order-2-artificial-viscosity" title="Permalink to this headline">¶</a></h2>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_32_0.png" src="_images/comparison_32_0.png" />
-<img alt="_images/comparison_32_1.png" src="_images/comparison_32_1.png" />
-<img alt="_images/comparison_32_2.png" src="_images/comparison_32_2.png" />
+<img alt="_images/comparison_33_0.png" src="_images/comparison_33_0.png" />
+<img alt="_images/comparison_33_1.png" src="_images/comparison_33_1.png" />
+<img alt="_images/comparison_33_2.png" src="_images/comparison_33_2.png" />
 </div>
 </div>
 <div class="cell tag_remove-input docutils container">
 <div class="cell_output docutils container">
-<img alt="_images/comparison_33_0.png" src="_images/comparison_33_0.png" />
-<img alt="_images/comparison_33_1.png" src="_images/comparison_33_1.png" />
-<img alt="_images/comparison_33_2.png" src="_images/comparison_33_2.png" />
+<img alt="_images/comparison_34_0.png" src="_images/comparison_34_0.png" />
+<img alt="_images/comparison_34_1.png" src="_images/comparison_34_1.png" />
+<img alt="_images/comparison_34_2.png" src="_images/comparison_34_2.png" />
 </div>
 </div>
 <ul class="simple">
@@ -560,6 +560,28 @@ We now want to show that</p>
 <h2>Conclusions<a class="headerlink" href="#conclusions" title="Permalink to this headline">¶</a></h2>
 <p>The higher amount of dissipation is likely the result of the larger amount of oscillations the higher order dG scheme produces.</p>
 <p>This shows that the upwind methods incorporates numerical diffusion naturally in the scheme. What the artificial diffusion does is to add numerical dissipation to a scheme (Arakawa) that does not inherently possess one. <strong>The upwind scheme however does not need to tune free parameters (<span class="math notranslate nohighlight">\(s\)</span> and <span class="math notranslate nohighlight">\(\nu\)</span>) to work properly</strong>. Furthermore, it does not need to invert the implicit part of the timestepper and is therefore potentially faster than the artificial viscosity regularization.</p>
+</div>
+<div class="section" id="timesteppers">
+<h2>Timesteppers<a class="headerlink" href="#timesteppers" title="Permalink to this headline">¶</a></h2>
+<p>As a last step we vary the timesteppers that we use to compute the solution</p>
+<div class="cell tag_remove-input docutils container">
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>FilteredExplicitMultistep SSP-6-3
+Shu-Osher SSPRK-3-3
+FilteredExplicitMultistep eBDF-3-3
+FilteredExplicitMultistep TVB-3-3
+</pre></div>
+</div>
+<img alt="_images/comparison_37_1.png" src="_images/comparison_37_1.png" />
+<img alt="_images/comparison_37_2.png" src="_images/comparison_37_2.png" />
+<img alt="_images/comparison_37_3.png" src="_images/comparison_37_3.png" />
+<img alt="_images/comparison_37_4.png" src="_images/comparison_37_4.png" />
+</div>
+</div>
+<ul class="simple">
+<li><p>it seems that for fixed timestep the various methods do not have an influence on the quality of the solution</p></li>
+<li><p>however the TVB-3-3 and SSP-6-3 methods execute 25% faster than eBDF-3-3, The Shu-Osher scheme was not run at its maximum timestep and therefore needs more function evaluations per step</p></li>
+</ul>
 <div class="toctree-wrapper compound">
 </div>
 </div>
