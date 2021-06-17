@@ -125,8 +125,8 @@ struct NavierStokesExplicit
                 qST[k] = uST[k] >= 0 ? nn[k] : nn[k+1];
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
                         "slope-limiter")
-                    qST[k] = uST[k] >=0 ? nn[k] + 1./2.*minmod( nn[k+1]-nn[k],
-                            nn[k]-nn[k-1]) : nn[k+1] - 1./2.*minmod(
+                    qST[k] = uST[k] >=0 ? nn[k] + 1./2.*vanLeer( nn[k+1]-nn[k],
+                            nn[k]-nn[k-1]) : nn[k+1] - 1./2.*vanLeer(
                                 nn[k+2]-nn[k+1], nn[k+1]-nn[k]);
                 qST[k]*= uST[k]; // k + 1/2
             }
@@ -137,9 +137,9 @@ struct NavierStokesExplicit
                 uh[k] = q[k] >= 0 ? uST[k-1] : uST[k];
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
                         "slope-limiter")
-                    uh[k] = q[k] >=0 ? uST[k-1] + 1./2.*minmod(
+                    uh[k] = q[k] >=0 ? uST[k-1] + 1./2.*vanLeer(
                             uST[k]-uST[k-1], uST[k-1]-uST[k-2]) : uST[k] -
-                        1./2.*minmod( uST[k+1]-uST[k], uST[k]-uST[k-1]);
+                        1./2.*vanLeer( uST[k+1]-uST[k], uST[k]-uST[k-1]);
             }
             for( unsigned i=0; i<Nx; i++)
             {
@@ -168,23 +168,26 @@ struct NavierStokesExplicit
         }
         else if ( m_scheme == "velocity-staggered")
         {
-            dg::HVec qST(m_yg[1]), q(qST), fh(qST), u2(qST);
+            dg::HVec qST(m_yg[1]), q(qST), fh(qST), u2(qST), dn(u2), du2(u2);
             const dg::HVec & uST = m_yg[1];
             const dg::HVec & nn = m_yg[0];
+            for ( unsigned k=1; k<Nx+3; k++)
+            {
+                q[k] = 0.5*(uST[k]+uST[k-1]); // this is the local shock speed
+                u2[k] = uST[k]*uST[k]/2.;
+            }
+            for( unsigned k=0; k<Nx+3; k++)
+                dn[k] = nn[k+1]-nn[k];
+            for( unsigned k=1; k<Nx+4; k++)
+                du2[k] = u2[k]-u2[k-1];
             for( unsigned k=1; k<Nx+2; k++)
             {
                 qST[k] = uST[k] >= 0 ? nn[k] : nn[k+1];
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
                         "slope-limiter")
-                    qST[k] = uST[k] >=0 ? nn[k] + 1./2.*minmod( nn[k+1]-nn[k],
-                            nn[k]-nn[k-1]) : nn[k+1] - 1./2.*minmod(
-                                nn[k+2]-nn[k+1], nn[k+1]-nn[k]);
+                    qST[k] += uST[k] >=0 ? + 1./2.*vanLeer( dn[k],
+                        dn[k-1]) : - 1./2.*vanLeer( dn[k+1], dn[k]);
                 qST[k]*= uST[k]; // k + 1/2
-            }
-            for ( unsigned k=1; k<Nx+3; k++)
-            {
-                q[k] = 0.5*(uST[k]+uST[k-1]);
-                u2[k] = uST[k]*uST[k]/2.;
             }
             for ( unsigned k=2; k<Nx+3; k++)
             {
@@ -192,13 +195,12 @@ struct NavierStokesExplicit
                 fh[k] = q[k] >= 0 ? u2[k-1] : u2[k];
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
                         "slope-limiter")
-                    //uh[k] = q[k] >=0 ? uST[k-1] + 1./2.*minmod(
+                    //uh[k] = q[k] >=0 ? uST[k-1] + 1./2.*vanLeer(
                     //        uST[k]-uST[k-1], uST[k-1]-uST[k-2]) : uST[k] -
-                    //    1./2.*minmod( uST[k+1]-uST[k], uST[k]-uST[k-1]);
+                    //    1./2.*vanLeer( uST[k+1]-uST[k], uST[k]-uST[k-1]);
                     // // higher order flux leads to centered differences
-                    fh[k] = q[k] >=0 ? u2[k-1] + 1./2.*minmod( u2[k]-u2[k-1],
-                            u2[k-1]-u2[k-2]) : u2[k] - 1./2.*minmod(
-                                u2[k+1]-u2[k], u2[k]-u2[k-1]);
+                    fh[k] += q[k] >=0 ? + 1./2.*vanLeer( du2[k],
+                        du2[k-1]) : - 1./2.*vanLeer( du2[k+1], du2[k]);
             }
             for( unsigned i=0; i<Nx; i++)
             {
@@ -216,16 +218,16 @@ struct NavierStokesExplicit
                 for( unsigned i=0; i<Nx; i++)
                 {
                     unsigned k=i+2;
-                    // The two variants make no difference
+                    // The second variant  is slightly better
                     if( m_gamma == 1)
-                        yp[1][i] += -m_alpha*(  log(nn[k+1]) - log(nn[k]))/hx;
-                        //yp[1][i] += -m_alpha*(  nn[k+1] - nn[k])*(1./nn[k+1]+1./nn[k])/2./hx;
+                        //yp[1][i] += -m_alpha*(  log(nn[k+1]) - log(nn[k]))/hx;
+                        yp[1][i] += -m_alpha*(  nn[k+1] - nn[k])*(1./nn[k+1]+1./nn[k])/2./hx;
                     else
-                        yp[1][i] += -m_gamma/(m_gamma-1)*m_alpha*(
-                                pow(nn[k+1], m_gamma-1) - pow(nn[k],
-                                    m_gamma-1))/hx;
-                        //yp[1][i] += -m_alpha*( pow(nn[k+1], m_gamma)
-                        //        - pow(nn[k], m_gamma))*(1./nn[k+1]+1./nn[k])/2./hx;
+                        //yp[1][i] += -m_gamma/(m_gamma-1)*m_alpha*(
+                        //        pow(nn[k+1], m_gamma-1) - pow(nn[k],
+                        //            m_gamma-1))/hx;
+                        yp[1][i] += -m_alpha*( pow(nn[k+1], m_gamma)
+                                - pow(nn[k], m_gamma))*(1./nn[k+1]+1./nn[k])/2./hx;
                     // eventual sources (due to floor level for example) should also
                     // go here
                 }
@@ -330,15 +332,16 @@ struct NavierStokesImplicit
                     unsigned k=i+2;
                     double gamma = m_ex.m_gamma;
                     if( gamma == 1)
-                        yp[1][i] += -m_ex.m_alpha*(  log(m_ex.m_yg[0][k+1]) -
-                                log(m_ex.m_yg[0][k]))/hx;
-                        //yp[1][i] += -m_ex.m_alpha*(  m_ex.m_yg[0][k+1] - m_ex.m_yg[0][k])*(1./m_ex.m_yg[0][k+1]+1./m_ex.m_yg[0][k])/2./hx;
+                        //yp[1][i] += -m_ex.m_alpha*(  log(m_ex.m_yg[0][k+1]) -
+                        //        log(m_ex.m_yg[0][k]))/hx;
+                        yp[1][i] += -m_ex.m_alpha*(  m_ex.m_yg[0][k+1] - m_ex.m_yg[0][k])*(1./m_ex.m_yg[0][k+1]+1./m_ex.m_yg[0][k])/2./hx;
                     else
-                        yp[1][i] += -gamma/(gamma-1)*m_ex.m_alpha*(
-                                pow(m_ex.m_yg[0][k+1], gamma-1) - pow(m_ex.m_yg[0][k],
-                                    gamma-1))/hx;
-                        //yp[1][i] += -m_ex.m_alpha*( pow(m_ex.m_yg[0][k+1], gamma)
-                        //        - pow(m_ex.m_yg[0][k], gamma))*(1./m_ex.m_yg[0][k+1]+1./m_ex.m_yg[0][k])/2./hx;
+                        //yp[1][i] += -gamma/(gamma-1)*m_ex.m_alpha*(
+                        //        pow(m_ex.m_yg[0][k+1], gamma-1) - pow(m_ex.m_yg[0][k],
+                        //            gamma-1))/hx;
+                        yp[1][i] += -m_ex.m_alpha*( pow(m_ex.m_yg[0][k+1],
+                                    gamma) - pow(m_ex.m_yg[0][k],
+                                        gamma))*(1./m_ex.m_yg[0][k+1]+1./m_ex.m_yg[0][k])/2./hx;
                     // eventual sources (due to floor level for example) should also
                     // go here
                 }

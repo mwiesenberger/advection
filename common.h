@@ -68,4 +68,10 @@ double minmod( double x, double y)
         return std::max(x,y);
     return 0.;
 }
+double vanLeer( double x, double y)
+{
+    if( x*y <= 0.)
+        return 0.;
+    return 2.*x*y/(x+y);
+}
 } //namespace equations
