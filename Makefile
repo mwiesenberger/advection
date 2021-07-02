@@ -22,4 +22,7 @@ navier_stokes: navier_stokes.cpp common.h
 plasma: plasma.cpp common.h
 	$(CC) $(OPT) $(CFLAGS) $< -o $@ $(INCLUDE) $(LIBS) $(JSONLIB) -g
 
+.PHONY: clean
 
+clean:
+	rm -f continuity navier_stokes plasma

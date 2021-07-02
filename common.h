@@ -60,18 +60,4 @@ void assign_ghost_cells( const dg::HVec& y, dg::HVec& yg, dg::bc bcx)
     }
 }
 
-double minmod( double x, double y)
-{
-    if( x >= 0 && y >= 0)
-        return std::min( x,y);
-    else if( x <=0 && y <= 0)
-        return std::max(x,y);
-    return 0.;
-}
-double vanLeer( double x, double y)
-{
-    if( x*y <= 0.)
-        return 0.;
-    return 2.*x*y/(x+y);
-}
 } //namespace equations

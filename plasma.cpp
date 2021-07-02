@@ -180,6 +180,7 @@ struct PlasmaExplicit
     }
     void operator() ( double t, const Vector & y, Vector& yp)
     {
+        m_called++;
         // y[0] -> density , y[0][0] electrons, y[0][1] ions
         // y[1] -> velocity, y[1][0] electrons, y[1][0] ions
         unsigned Nx = m_g.N();
@@ -189,6 +190,8 @@ struct PlasmaExplicit
         assign_ghost_cells( y[1][0], m_yg[1][0], m_bc_u);
         assign_ghost_cells( y[1][1], m_yg[1][1], m_bc_u);
         solve_poisson( t, y[0], m_ghphi);
+        dg::Upwind upwind;
+        dg::SlopeLimiter<dg::MinMod> limiter;
         for( unsigned s=0; s<2; s++) // species loop
         {
             if( m_mode == "adiabatic" && s == 0)
@@ -217,34 +220,33 @@ struct PlasmaExplicit
             }
             else if ( m_scheme == "staggered")
             {
-                dg::HVec qST(m_yg[1][s]), q(qST), uh(qST), uST( q);
+                dg::HVec qST(m_yg[1][s]), q(qST), uh(qST), uST( q), dn(q), du(q);
                 const dg::HVec & unST = m_yg[1][s];
                 const dg::HVec & nn = m_yg[0][s];
                 for( unsigned k=0; k<Nx+3; k++)
                 {
                     double nST = (nn[k] + nn[k+1])/2.;
                     uST[k] = unST[k]/nST;
+                    dn[k] = nn[k+1]-nn[k];
                 }
                 for( unsigned k=1; k<Nx+2; k++)
                 {
-                    qST[k] = uST[k] >= 0 ? nn[k] : nn[k+1];
+                    qST[k] = upwind( uST[k], nn[k], nn[k+1]);
                     if( m_variant == "slope-limiter-explicit" || m_variant ==
                             "slope-limiter")
-                        qST[k] = uST[k] >=0 ? nn[k] + 1./2.*minmod( nn[k+1]-nn[k],
-                                nn[k]-nn[k-1]) : nn[k+1] - 1./2.*minmod(
-                                    nn[k+2]-nn[k+1], nn[k+1]-nn[k]);
+                        qST[k] += limiter(uST[k], dn[k-1], dn[k], dn[k+1], 0.5, 0.5);
                     qST[k]*= uST[k]; // k + 1/2
                 }
                 for ( unsigned k=1; k<Nx+3; k++)
                     q [k] = 0.5*(qST[k]+qST[k-1]);
+                for( unsigned k=1; k<Nx+4; k++)
+                    du[k] = uST[k] - uST[k-1];
                 for ( unsigned k=2; k<Nx+3; k++)
                 {
-                    uh[k] = q[k] >= 0 ? uST[k-1] : uST[k];
+                    uh[k] = upwind( q[k], uST[k-1], uST[k]);
                     if( m_variant == "slope-limiter-explicit" || m_variant ==
                             "slope-limiter")
-                        uh[k] = q[k] >=0 ? uST[k-1] + 1./2.*minmod(
-                                uST[k]-uST[k-1], uST[k-1]-uST[k-2]) : uST[k] -
-                            1./2.*minmod( uST[k+1]-uST[k], uST[k]-uST[k-1]);
+                        uh[k] += limiter(q[k], du[k-1], du[k], du[k+1], 0.5, 0.5);
                 }
                 for( unsigned i=0; i<Nx; i++)
                 {
@@ -360,6 +362,7 @@ struct PlasmaExplicit
 
         }
     }
+    unsigned called() const { return m_called;}
     private:
     std::string m_scheme, m_variant, m_init, m_method, m_mode;
     Vector m_yg;
@@ -377,6 +380,7 @@ struct PlasmaExplicit
     double m_eps, m_eta, m_eps_D;
     double m_n0 = 0, m_u0 = 0, m_A = 0, m_B = 0, m_k = 0, m_v = 0;
     double m_mMax, m_damping;
+    unsigned m_called = 0;
 };
 
 struct PlasmaImplicit
@@ -453,7 +457,6 @@ struct Variables{
     Json::Value& js;
     double duration;
     unsigned nfailed;
-    unsigned nsteps;
 };
 
 struct Record1d{
@@ -575,19 +578,19 @@ std::vector<Record> diagnostics_list = {
     },
 };
 std::vector<Record1d> diagnostics1d_list = {
-    {"failed", "Number of failed steps",
+    {"failed", "Accumulated Number of failed steps",
         []( Variables& v ) {
             return v.nfailed;
         }
     },
-    {"duration", "Computation time for the latest output (i.e. nsteps timesteps)",
+    {"duration", "Computation time for the latest output",
         []( Variables& v ) {
             return v.duration;
         }
     },
-    {"nsteps", "Number of calls to the timestepper (including failed steps)",
+    {"nsteps", "Accumulated Number of calls to the timestepper (including failed steps)",
         [](Variables& v) {
-            return v.nsteps;
+            return v.f.called();
         }
     }
 };
@@ -777,7 +780,7 @@ int main( int argc, char* argv[])
     size_t start[2] = {0, 0};
     size_t count[2] = {1, grid.size()};
     dg::HVec result = y0[0][0];
-    equations::Variables var = {ex, grid, y0, time, js, 0., 0, 0};
+    equations::Variables var = {ex, grid, y0, time, js, 0., 0};
     {   // update internal quantities
         Vector tmp ( y0);
         ex( time, y0, tmp);
@@ -813,7 +816,6 @@ int main( int argc, char* argv[])
             else if( timestepper == "ERK")
                 erk_adaptive.step( ex, time, y0, time, y0, dt,
                     dg::pid_control, dg::l2norm, rtol, atol);
-            var.nsteps++;
             if( erk_adaptive.failed() || ark_adaptive.failed())
             {
                 var.nfailed++;

@@ -41,12 +41,15 @@ struct NavierStokesExplicit
     const dg::HVec& velocity() const{return m_velocity;}
     void operator() ( double t, const std::array<dg::HVec,2> & y, std::array<dg::HVec, 2>& yp)
     {
+        m_called++;
         // y[0] -> density
         // y[1] -> velocity
         unsigned Nx = m_g.N();
         double hx = m_g.h();
         assign_ghost_cells( y[0], m_yg[0], m_bc_n);
         assign_ghost_cells( y[1], m_yg[1], m_bc_u);
+        dg::Upwind upwind;
+        dg::SlopeLimiter<dg::MinMod> limiter;
         // ghost cells are shifted by 2
         if ( m_scheme == "upwind")
         {
@@ -112,34 +115,35 @@ struct NavierStokesExplicit
         }
         else if ( m_scheme == "staggered")
         {
-            dg::HVec qST(m_yg[1]), q(qST), uh(qST), uST( q);
+            dg::HVec qST(m_yg[1]), q(qST), uh(qST), uST( q), dn(q), du(q);
             const dg::HVec & unST = m_yg[1];
             const dg::HVec & nn = m_yg[0];
             for( unsigned k=0; k<Nx+3; k++)
             {
+                // don't compute nSTinv here
                 double nST = (nn[k] + nn[k+1])/2.;
                 uST[k] = unST[k]/nST;
             }
+            for( unsigned k=0; k<Nx+3; k++)
+                dn[k] = nn[k+1]-nn[k];
+            for( unsigned k=1; k<Nx+4; k++)
+                du[k] = uST[k] - uST[k-1];
             for( unsigned k=1; k<Nx+2; k++)
             {
-                qST[k] = uST[k] >= 0 ? nn[k] : nn[k+1];
+                qST[k] = upwind( uST[k], nn[k], nn[k+1]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
                         "slope-limiter")
-                    qST[k] = uST[k] >=0 ? nn[k] + 1./2.*vanLeer( nn[k+1]-nn[k],
-                            nn[k]-nn[k-1]) : nn[k+1] - 1./2.*vanLeer(
-                                nn[k+2]-nn[k+1], nn[k+1]-nn[k]);
+                    qST[k] += limiter(uST[k], dn[k-1], dn[k], dn[k+1], 0.5, 0.5);
                 qST[k]*= uST[k]; // k + 1/2
             }
             for ( unsigned k=1; k<Nx+3; k++)
                 q [k] = 0.5*(qST[k]+qST[k-1]);
             for ( unsigned k=2; k<Nx+3; k++)
             {
-                uh[k] = q[k] >= 0 ? uST[k-1] : uST[k];
+                uh[k] = upwind( q[k], uST[k-1], uST[k]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
                         "slope-limiter")
-                    uh[k] = q[k] >=0 ? uST[k-1] + 1./2.*vanLeer(
-                            uST[k]-uST[k-1], uST[k-1]-uST[k-2]) : uST[k] -
-                        1./2.*vanLeer( uST[k+1]-uST[k], uST[k]-uST[k-1]);
+                    uh[k] += limiter(q[k], du[k-1], du[k], du[k+1], 0.5, 0.5);
             }
             for( unsigned i=0; i<Nx; i++)
             {
@@ -168,67 +172,94 @@ struct NavierStokesExplicit
         }
         else if ( m_scheme == "velocity-staggered")
         {
-            dg::HVec qST(m_yg[1]), q(qST), fh(qST), u2(qST), dn(u2), du2(u2);
+            dg::HVec qST(m_yg[1]), uu(qST), fh(qST), u2(qST), dn(u2), du(u2), du2(u2), q(u2), uh(u2);
             const dg::HVec & uST = m_yg[1];
             const dg::HVec & nn = m_yg[0];
             for ( unsigned k=1; k<Nx+3; k++)
             {
-                q[k] = 0.5*(uST[k]+uST[k-1]); // this is the local shock speed
+                uu[k] = 0.5*(uST[k]+uST[k-1]); // this is the local shock speed
                 u2[k] = uST[k]*uST[k]/2.;
             }
             for( unsigned k=0; k<Nx+3; k++)
                 dn[k] = nn[k+1]-nn[k];
-            for( unsigned k=1; k<Nx+4; k++)
-                du2[k] = u2[k]-u2[k-1];
             for( unsigned k=1; k<Nx+2; k++)
             {
-                qST[k] = uST[k] >= 0 ? nn[k] : nn[k+1];
+                qST[k] = upwind( uST[k], nn[k], nn[k+1]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
                         "slope-limiter")
-                    qST[k] += uST[k] >=0 ? + 1./2.*vanLeer( dn[k],
-                        dn[k-1]) : - 1./2.*vanLeer( dn[k+1], dn[k]);
+                    qST[k] += limiter(uST[k], dn[k-1], dn[k], dn[k+1], 0.5, 0.5);
                 qST[k]*= uST[k]; // k + 1/2
             }
+            for( unsigned k=1; k<Nx+4; k++)
+                du2[k] = u2[k]-u2[k-1];
             for ( unsigned k=2; k<Nx+3; k++)
             {
-                //uh[k] = q[k] >= 0 ? uST[k-1] : uST[k];
-                fh[k] = q[k] >= 0 ? u2[k-1] : u2[k];
+                fh[k] = upwind( uu[k], u2[k-1], u2[k]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
                         "slope-limiter")
-                    //uh[k] = q[k] >=0 ? uST[k-1] + 1./2.*vanLeer(
-                    //        uST[k]-uST[k-1], uST[k-1]-uST[k-2]) : uST[k] -
-                    //    1./2.*vanLeer( uST[k+1]-uST[k], uST[k]-uST[k-1]);
-                    // // higher order flux leads to centered differences
-                    fh[k] += q[k] >=0 ? + 1./2.*vanLeer( du2[k],
-                        du2[k-1]) : - 1./2.*vanLeer( du2[k+1], du2[k]);
+                    fh[k] += limiter(uu[k], du2[k-1], du2[k], du2[k+1], 0.5, 0.5);
+            }
+            for ( unsigned k=1; k<Nx+3; k++)
+                q [k] = 0.5*(qST[k]+qST[k-1]);
+            for( unsigned k=1; k<Nx+4; k++)
+                du[k] = uST[k] - uST[k-1];
+            for ( unsigned k=2; k<Nx+3; k++)
+            {
+                uh[k] = upwind( uu[k], uST[k-1], uST[k]);
+                if( m_variant == "slope-limiter-explicit" || m_variant ==
+                        "slope-limiter")
+                    uh[k] += limiter(q[k], du[k-1], du[k], du[k+1], 0.5, 0.5);
             }
             for( unsigned i=0; i<Nx; i++)
             {
                 unsigned k=i+2;
                 m_velocity[i] = 0.5*(uST[k]+uST[k-1]);
+                // MW: factoring this out into two terms n d.v + v.d n makes
+                // it much worse
                 yp[0][i] = -( qST[k] - qST[k-1])/hx;
-                //
-                //yp[1][i] = -(uh[k+1]*q[k+1]-uh[k]*q[k])/2./hx;
-                yp[1][i] = -(fh[k+1]-fh[k])/hx;
-                double nST = (nn[k] + nn[k+1])/2.;
-                yp[1][i]+= m_nu_u/nST*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
+                // Does not really matter:
+                double nSTinv = 2./(nn[k] + nn[k+1]);
+                //double nSTinv = (1./nn[k] + 1./nn[k+1])/2.;
+
+                // This one is far away from good
+                //yp[1][i] = -uST[k]*(uh[k+1]-uh[k])/hx;
+                // This one has the "gathering velocity" problem
+                //yp[1][i] = -uu[k]*(uh[k+1]-uh[k])/hx;
+                // This one captures Burger and almost fluid; almost overlays
+                // in wave (has overshoots in the shocks, better than fh)
+                yp[1][i] = -(uu[k+1]*uh[k+1]-uu[k]*uh[k])/2./hx;
+                // This one almost captures the fluid shock but not Burger
+                // needs a lot of timesteps
+                // especially w/o slope-limiter
+                //yp[1][i] = -(q[k+1]+q[k])/2.*(uh[k+1]-uh[k])/hx*nSTinv;
+                // This is almost the same as with fh
+                //yp[1][i] = -(uh[k+1]*uh[k+1]-uh[k]*uh[k])/2./hx;
+                // This is the most straightforward, works all-round but does
+                // not capture shock (but does capture Burger's shock)
+                //yp[1][i] = -(fh[k+1]-fh[k])/hx;
+                yp[1][i]+= m_nu_u*nSTinv*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
             }
             if( m_variant == "explicit" || m_variant == "slope-limiter-explicit")
             {
                 for( unsigned i=0; i<Nx; i++)
                 {
                     unsigned k=i+2;
-                    // The second variant  is slightly better
+                    //double nSTinv = 2./(nn[k] + nn[k+1]);
+                    // This version is much better than the first or second
+                    double nSTinv = (1./nn[k] + 1./nn[k+1])/2.;
+                    //double nSTinv = 1./sqrt( nn[k]*nn[k+1]);
                     if( m_gamma == 1)
+                        // log is worse the nSTinv
                         //yp[1][i] += -m_alpha*(  log(nn[k+1]) - log(nn[k]))/hx;
-                        yp[1][i] += -m_alpha*(  nn[k+1] - nn[k])*(1./nn[k+1]+1./nn[k])/2./hx;
+                        yp[1][i] += -m_alpha*(  nn[k+1] - nn[k])*nSTinv/hx;
+                        //yp[1][i] += -m_alpha*(  nn[k+1]*nn[k+1] - nn[k]*nn[k])*(nn[k+1]*nn[k+1]+nn[k]*nn[k])/nn[k+1]/nn[k]/nn[k+1]/nn[k]/4./hx;
                     else
                         //yp[1][i] += -m_gamma/(m_gamma-1)*m_alpha*(
                         //        pow(nn[k+1], m_gamma-1) - pow(nn[k],
                         //            m_gamma-1))/hx;
                         yp[1][i] += -m_alpha*( pow(nn[k+1], m_gamma)
-                                - pow(nn[k], m_gamma))*(1./nn[k+1]+1./nn[k])/2./hx;
-                    // eventual sources (due to floor level for example) should also
+                                - pow(nn[k], m_gamma))*nSTinv/hx;
+                    // possible sources (due to floor level for example) should also
                     // go here
                 }
             }
@@ -283,7 +314,14 @@ struct NavierStokesExplicit
 
             }
         }
+        bool burger = true;
+        for( unsigned i=1; i<Nx; i++)
+            if( fabs(y[0][i] - y[0][0]) > 1e-14){ burger  = false; break;}
+        if( burger)
+            for( unsigned i=0; i<Nx; i++)
+                yp[0][i] = 0.;
     }
+    unsigned called() const { return m_called;}
     private:
     std::string m_scheme, m_variant, m_init;
     std::array<dg::HVec,2> m_yg;
@@ -292,6 +330,7 @@ struct NavierStokesExplicit
     dg::bc m_bc_n, m_bc_u;
     double m_alpha, m_gamma, m_nu_u, m_nu_n;
     double m_n0 = 0, m_u0 = 0, m_A = 0, m_B = 0, m_k = 0, m_v = 0;
+    unsigned m_called = 0;
 };
 
 struct NavierStokesImplicit
@@ -317,7 +356,7 @@ struct NavierStokesImplicit
                     yp[1][i] = -m_ex.m_alpha*(std::pow(m_ex.m_yg[0][k+1],
                                 m_ex.m_gamma) - std::pow(m_ex.m_yg[0][k],
                                     m_ex.m_gamma))/hx;
-                    // eventual sources (due to floor level for example) should also
+                    // possible sources (due to floor level for example) should also
                     // go here
                 }
             }
@@ -342,7 +381,7 @@ struct NavierStokesImplicit
                         yp[1][i] += -m_ex.m_alpha*( pow(m_ex.m_yg[0][k+1],
                                     gamma) - pow(m_ex.m_yg[0][k],
                                         gamma))*(1./m_ex.m_yg[0][k+1]+1./m_ex.m_yg[0][k])/2./hx;
-                    // eventual sources (due to floor level for example) should also
+                    // possible sources (due to floor level for example) should also
                     // go here
                 }
             }
@@ -382,7 +421,6 @@ struct Variables{
     Json::Value& js;
     double duration;
     unsigned nfailed;
-    unsigned nsteps;
 };
 
 struct Record1d{
@@ -494,6 +532,21 @@ std::vector<Record> diagnostics_list = {
                             return 0.;}, v.grid);
                 }
             }
+            else if ("riemann" == init)
+            {
+                double alpha = v.js["physical"].get("alpha",2).asDouble();
+                if( alpha == 0)
+                {
+                    double x_a = v.js["init"].get("x_a", 0.1).asDouble();
+                    double u_l = v.js["init"].get("u_l", 1.0).asDouble();
+                    double u_r = v.js["init"].get("u_r", 1.0).asDouble();
+                    result = dg::evaluate( [=](double x){
+                            if( x <= x_a + (u_l+u_r)/2.*v.time)
+                                return u_l;
+                            return u_r; }, v.grid);
+
+                }
+            }
             else if ( "mms" == init)
             {
                 double gamma = v.js["physical"].get("gamma",2).asDouble();
@@ -512,19 +565,19 @@ std::vector<Record> diagnostics_list = {
     }
 };
 std::vector<Record1d> diagnostics1d_list = {
-    {"failed", "Number of failed steps",
+    {"failed", "Accumulated Number of failed steps",
         []( Variables& v ) {
             return v.nfailed;
         }
     },
-    {"duration", "Computation time for the latest output (i.e. nsteps timesteps)",
+    {"duration", "Computation time for the latest output",
         []( Variables& v ) {
             return v.duration;
         }
     },
-    {"nsteps", "Number of calls to the timestepper (including failed steps)",
+    {"nsteps", "Accumulated Number of calls to the timestepper (including failed steps)",
         [](Variables& v) {
-            return v.nsteps;
+            return v.f.called();
         }
     }
 };
@@ -693,7 +746,7 @@ int main( int argc, char* argv[])
     size_t start[2] = {0, 0};
     size_t count[2] = {1, grid.size()};
     dg::HVec result = y0[0];
-    equations::Variables var = {ex, grid, y0, time, js, 0., 0, 0};
+    equations::Variables var = {ex, grid, y0, time, js, 0., 0};
     {   // update internal velocity
         std::array<dg::HVec , 2> tmp ( y0);
         ex( time, y0, tmp);
@@ -729,7 +782,6 @@ int main( int argc, char* argv[])
             else if( timestepper == "ERK")
                 erk_adaptive.step( ex, time, y0, time, y0, dt,
                     dg::pid_control, dg::l2norm, rtol, atol);
-            var.nsteps++;
             if( erk_adaptive.failed() || ark_adaptive.failed())
             {
                 var.nfailed++;
@@ -771,7 +823,6 @@ int main( int argc, char* argv[])
     //    else if( timestepper == "ERK")
     //        for( unsigned k=0; k<NT; k++)
     //            erk_fixed.step( ex, time, y0, time, y0, dt);
-    //    var.nsteps += NT;
     //    t.toc();
     //    var.duration = t.diff();
     //    /////////////////////////////////output/////////////////////////
