@@ -13,7 +13,7 @@ struct NavierStokesExplicit
 {
     friend class NavierStokesImplicit;
     NavierStokesExplicit( dg::Grid1d g, dg::Grid1d vel_g, Json::Value js) :
-        m_velocity( g.size(), 0.), m_g(g), m_vel_g(vel_g)
+        m_velocity( g.size(), 0.), m_density(m_velocity), m_g(g), m_vel_g(vel_g)
     {
         dg::HVec temp( g.size()+4, 0.);
         m_yg.fill( temp);
@@ -38,6 +38,7 @@ struct NavierStokesExplicit
         }
     }
 
+    const dg::HVec& density() const{return m_density;}
     const dg::HVec& velocity() const{return m_velocity;}
     void operator() ( double t, const std::array<dg::HVec,2> & y, std::array<dg::HVec, 2>& yp)
     {
@@ -63,6 +64,7 @@ struct NavierStokesExplicit
             }
             for( unsigned i=0; i<Nx; i++)
             {
+                m_density[i] = y[0][i];
                 m_velocity[i] = y[1][i];
                 unsigned k=i+2;
                 if( uu[k] > 0.)
@@ -82,6 +84,7 @@ struct NavierStokesExplicit
             const dg::HVec & uu = m_yg[1];
             for( unsigned i=0; i<Nx; i++)
             {
+                m_density[i] = y[0][i];
                 m_velocity[i] = y[1][i];
                 unsigned k=i+2;
                 if( m_yg[1][k] > 0.)
@@ -102,6 +105,7 @@ struct NavierStokesExplicit
             const dg::HVec & uu = m_yg[1];
             for( unsigned i=0; i<Nx; i++)
             {
+                m_density[i] = y[0][i];
                 m_velocity[i] = y[1][i];
                 unsigned k=i+2;
                 yp[0][i] =  -uu[k]*( nn[k+1]-nn[k-1])/2./hx
@@ -148,6 +152,7 @@ struct NavierStokesExplicit
             for( unsigned i=0; i<Nx; i++)
             {
                 unsigned k=i+2;
+                m_density[i] = y[0][i];
                 m_velocity[i] = 0.5*(unST[k]+unST[k-1])/nn[k];
                 yp[0][i] = -( qST[k] - qST[k-1])/hx;
                 //
@@ -213,6 +218,7 @@ struct NavierStokesExplicit
             for( unsigned i=0; i<Nx; i++)
             {
                 unsigned k=i+2;
+                m_density[i] = y[0][i];
                 m_velocity[i] = 0.5*(uST[k]+uST[k-1]);
                 // MW: factoring this out into two terms n d.v + v.d n makes
                 // it much worse
@@ -264,10 +270,52 @@ struct NavierStokesExplicit
                 }
             }
         }
+        else if ( m_scheme == "staggered-direct")
+        {
+            // y[0] -> ln n
+            // y[1] -> u^st
+            dg::HVec qST(m_yg[1]), dlnST(qST), uu(qST), q(qST);
+            const dg::HVec & uST = m_yg[1];
+            const dg::HVec & lnn = m_yg[0];
+            for ( unsigned k=1; k<Nx+3; k++)
+                uu[k] = 0.5*(uST[k]+uST[k-1]); // this is the local shock speed
+            for( unsigned k=0; k<Nx+3; k++)
+                dlnST[k] = lnn[k+1]-lnn[k];
+            for( unsigned k=1; k<Nx+2; k++)
+                qST[k] = uST[k]*dlnST[k];
+            for ( unsigned k=1; k<Nx+3; k++)
+                q [k] = 0.5*(qST[k]+qST[k-1]);
+            for( unsigned i=0; i<Nx; i++)
+            {
+                unsigned k=i+2;
+                m_density[i] = exp(y[0][i]);
+                m_velocity[i] = uu[k];
+                yp[0][i] = -( uST[k]-uST[k-1] )/hx  - q[k]/hx ;
+                yp[1][i] = -uST[k]*(uu[k+1]-uu[k])/hx;
+                double nSTinv = 2./(exp(lnn[k]) + exp(lnn[k+1]));
+                yp[1][i]+= m_nu_u*nSTinv*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
+            }
+            for( unsigned i=0; i<Nx; i++)
+            {
+                unsigned k=i+2;
+                if( m_gamma == 1)
+                    yp[1][i] += -m_alpha*(  lnn[k+1] - lnn[k])/hx;
+                else
+                {
+                    double nSTinv = (1./exp(lnn[k]) + 1./exp(lnn[k+1]))/2.;
+                    yp[1][i] += -m_alpha*( pow(exp(lnn[k+1]), m_gamma)
+                            - pow(exp(lnn[k]), m_gamma))*nSTinv/hx;
+                }
+            }
+        }
         for( unsigned i=0; i<Nx; i++)
         {
             unsigned k=i+2;
-            yp[0][i] +=  m_nu_n*( m_yg[0][k+1]-2.*m_yg[0][k]+m_yg[0][k-1])/hx/hx;
+            if( m_scheme == "staggered-direct")
+                yp[0][i] +=  m_nu_n*( exp(m_yg[0][k+1]) - 2.*exp(m_yg[0][k]) +
+                        exp(m_yg[0][k-1]))/exp(m_yg[0][k])/hx/hx;
+            else
+                yp[0][i] +=  m_nu_n*( m_yg[0][k+1]-2.*m_yg[0][k]+m_yg[0][k-1])/hx/hx;
         }
 
         if( "mms" == m_init)
@@ -292,6 +340,11 @@ struct NavierStokesExplicit
                                 (m_A*m_alpha)/(m_n0 + m_A*sin(m_k*(-(t*m_v) +
                                             x)))));
                     }, m_vel_g);
+                if( m_scheme == "staggered-direct")
+                {
+                    for( unsigned k=0; k<Nx; k++)
+                        tmpN[k]/=exp(y[0][k]);
+                }
                 dg::blas1::axpby( 1., tmpN, 1., yp[0]);
                 if( m_scheme == "staggered")
                 {
@@ -326,6 +379,7 @@ struct NavierStokesExplicit
     std::string m_scheme, m_variant, m_init;
     std::array<dg::HVec,2> m_yg;
     dg::HVec m_velocity; // stores the velocity on non-staggered grid
+    dg::HVec m_density;
     dg::Grid1d m_g, m_vel_g;
     dg::bc m_bc_n, m_bc_u;
     double m_alpha, m_gamma, m_nu_u, m_nu_n;
@@ -438,7 +492,7 @@ struct Record{
 std::vector<Record> diagnostics_list = {
     {"density", "Numerical density",
         []( dg::HVec& result, Variables& v ) {
-             dg::blas1::copy(v.y0[0], result);
+             dg::blas1::copy(v.f.density(), result);
         }
     },
     {"velocity", "Numerical velocity",
@@ -603,7 +657,8 @@ int main( int argc, char* argv[])
     std::string init = js["init"].get("type", "step").asString();
     std::string scheme = js["advection"].get("type", "staggered").asString();
     dg::Grid1d vel_grid = equations::createGrid( js["grid"], dg::PER);
-    if ( "staggered" == scheme || "velocity-staggered" == scheme)
+    if ( "staggered" == scheme || "velocity-staggered" == scheme ||
+            "staggered-direct" == scheme)
         vel_grid = equations::createStaggeredGrid( js["grid"], dg::PER);
     std::array<dg::HVec,2> y0 = {dg::evaluate( dg::zero, grid), dg::evaluate( dg::zero, grid)};
     if( "step" == init)
@@ -613,6 +668,8 @@ int main( int argc, char* argv[])
         double n_l = js["init"].get("n_l", 1.0).asDouble();
         double n_r = js["init"].get("n_r", 1.0).asDouble();
         y0[0] = dg::evaluate( [=](double x){ return x < x_a ? n_l : n_r;}, grid);
+        if( scheme == "staggered-direct")
+            dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
     }
     else if( "riemann" == init)
     {
@@ -627,6 +684,8 @@ int main( int argc, char* argv[])
         if( scheme == "staggered")
             y0[1] = dg::evaluate( [=](double x){ return x < x_a ? n_l*u_l :
                     n_r*u_r;}, vel_grid);
+        if( scheme == "staggered-direct")
+            dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
     }
     else if( "wave" == init)
     {
@@ -636,6 +695,8 @@ int main( int argc, char* argv[])
         double x_0 = js["init"].get("x_0", 1.0).asDouble();
         y0[0] = dg::evaluate( [=]( double x){ return n_0 + amp*sin( k*(x-x_0));},
                 grid);
+        if( scheme == "staggered-direct")
+            dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
     }
     else if ( "mms" == init)
     {
@@ -649,6 +710,8 @@ int main( int argc, char* argv[])
         if( scheme == "staggered")
             y0[1] = dg::evaluate( [=](double x){ return
                     (u_0+B*sin(k*x))*(n_0+A*sin(k*x));}, vel_grid);
+        if( scheme == "staggered-direct")
+            dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
     }
 
     std::string timestepper = js["timestepper"].get( "type", "ERK").asString();
