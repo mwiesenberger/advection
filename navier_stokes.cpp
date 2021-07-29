@@ -782,6 +782,8 @@ int main( int argc, char* argv[])
             else if( timestepper == "ERK")
                 erk_adaptive.step( ex, time, y0, time, y0, dt,
                     dg::pid_control, dg::l2norm, rtol, atol);
+            if( dt < 1e-6)
+                throw dg::Error(dg::Message(_ping_)<<"Adaptive failed to converge! dt = "<<std::scientific<<dt);
             if( erk_adaptive.failed() || ark_adaptive.failed())
             {
                 var.nfailed++;
