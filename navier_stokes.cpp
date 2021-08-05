@@ -213,7 +213,7 @@ struct NavierStokesExplicit
                 uh[k] = upwind( uu[k], uST[k-1], uST[k]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
                         "slope-limiter")
-                    uh[k] += limiter(q[k], du[k-1], du[k], du[k+1], 0.5, 0.5);
+                    uh[k] += limiter(uu[k], du[k-1], du[k], du[k+1], 0.5, 0.5);
             }
             for( unsigned i=0; i<Nx; i++)
             {
@@ -308,10 +308,61 @@ struct NavierStokesExplicit
                 }
             }
         }
+        else if ( m_scheme == "log-staggered")
+        {
+            dg::HVec qST(m_yg[1]), uu(qST), fh(qST), u2(qST), dlnn(u2), du(u2), du2(u2), uh(u2);
+            const dg::HVec & lnn = m_yg[0];
+            const dg::HVec & uST = m_yg[1];
+            for ( unsigned k=1; k<Nx+3; k++)
+            {
+                uu[k] = 0.5*(uST[k]+uST[k-1]); // this is the local shock speed
+                u2[k] = uST[k]*uST[k]/2.;
+            }
+            for( unsigned k=0; k<Nx+3; k++)
+                dlnn[k] = lnn[k+1]-lnn[k];
+            for( unsigned k=1; k<Nx+2; k++)
+            {
+                qST[k] = upwind( uST[k], lnn[k], lnn[k+1]);
+                if( m_variant == "slope-limiter-explicit" || m_variant ==
+                        "slope-limiter")
+                    qST[k] += limiter(uST[k], dlnn[k-1], dlnn[k], dlnn[k+1], 0.5, 0.5);
+            }
+            for( unsigned k=1; k<Nx+4; k++)
+                du[k] = uST[k] - uST[k-1];
+            for ( unsigned k=2; k<Nx+3; k++)
+            {
+                uh[k] = upwind( uu[k], uST[k-1], uST[k]);
+                if( m_variant == "slope-limiter-explicit" || m_variant ==
+                        "slope-limiter")
+                    uh[k] += limiter(uu[k], du[k-1], du[k], du[k+1], 0.5, 0.5);
+            }
+            for( unsigned i=0; i<Nx; i++)
+            {
+                unsigned k=i+2;
+                m_density[i] = exp(lnn[k]);
+                m_velocity[i] = uu[k];
+                yp[0][i] = -uu[k]*( qST[k] - qST[k-1])/hx - du[k]/hx;
+                double nSTinv = 2./(exp(lnn[k]) + exp(lnn[k+1]));
+                yp[1][i] = -(uu[k+1]*uh[k+1]-uu[k]*uh[k])/2./hx;
+                yp[1][i]+= m_nu_u*nSTinv*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
+            }
+            for( unsigned i=0; i<Nx; i++)
+            {
+                unsigned k=i+2;
+                if( m_gamma == 1)
+                    yp[1][i] += -m_alpha*(  lnn[k+1] - lnn[k])/hx;
+                else
+                {
+                    double nSTinv = (1./exp(lnn[k]) + 1./exp(lnn[k+1]))/2.;
+                    yp[1][i] += -m_alpha*( pow(exp(lnn[k+1]), m_gamma)
+                            - pow(exp(lnn[k]), m_gamma))*nSTinv/hx;
+                }
+            }
+        }
         for( unsigned i=0; i<Nx; i++)
         {
             unsigned k=i+2;
-            if( m_scheme == "staggered-direct")
+            if( m_scheme == "staggered-direct" || m_scheme == "log-staggered")
                 yp[0][i] +=  m_nu_n*( exp(m_yg[0][k+1]) - 2.*exp(m_yg[0][k]) +
                         exp(m_yg[0][k-1]))/exp(m_yg[0][k])/hx/hx;
             else
@@ -340,7 +391,7 @@ struct NavierStokesExplicit
                                 (m_A*m_alpha)/(m_n0 + m_A*sin(m_k*(-(t*m_v) +
                                             x)))));
                     }, m_vel_g);
-                if( m_scheme == "staggered-direct")
+                if( m_scheme == "staggered-direct" || m_scheme == "log-staggered")
                 {
                     for( unsigned k=0; k<Nx; k++)
                         tmpN[k]/=exp(y[0][k]);
@@ -658,7 +709,7 @@ int main( int argc, char* argv[])
     std::string scheme = js["advection"].get("type", "staggered").asString();
     dg::Grid1d vel_grid = equations::createGrid( js["grid"], dg::PER);
     if ( "staggered" == scheme || "velocity-staggered" == scheme ||
-            "staggered-direct" == scheme)
+            "staggered-direct" == scheme || "log-staggered" == scheme)
         vel_grid = equations::createStaggeredGrid( js["grid"], dg::PER);
     std::array<dg::HVec,2> y0 = {dg::evaluate( dg::zero, grid), dg::evaluate( dg::zero, grid)};
     if( "step" == init)
@@ -668,7 +719,7 @@ int main( int argc, char* argv[])
         double n_l = js["init"].get("n_l", 1.0).asDouble();
         double n_r = js["init"].get("n_r", 1.0).asDouble();
         y0[0] = dg::evaluate( [=](double x){ return x < x_a ? n_l : n_r;}, grid);
-        if( scheme == "staggered-direct")
+        if( scheme == "staggered-direct" || scheme == "log-staggered")
             dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
     }
     else if( "riemann" == init)
@@ -684,18 +735,22 @@ int main( int argc, char* argv[])
         if( scheme == "staggered")
             y0[1] = dg::evaluate( [=](double x){ return x < x_a ? n_l*u_l :
                     n_r*u_r;}, vel_grid);
-        if( scheme == "staggered-direct")
+        if( scheme == "staggered-direct" || scheme == "log-staggered")
             dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
     }
     else if( "wave" == init)
     {
         double n_0 = js["init"].get("n_0", 1.0).asDouble();
-        double amp = js["init"].get("amp", 1.0).asDouble();
-        double k   = js["init"].get("k", 1.0).asDouble();
-        double x_0 = js["init"].get("x_0", 1.0).asDouble();
-        y0[0] = dg::evaluate( [=]( double x){ return n_0 + amp*sin( k*(x-x_0));},
-                grid);
-        if( scheme == "staggered-direct")
+        double u_0 = js["init"].get("u_0", 1.0).asDouble();
+        double A = js["init"].get("A", 1.0).asDouble();
+        double B = js["init"].get("B", 1.0).asDouble();
+        double k = js["init"].get("k", 1.0).asDouble();
+        y0[0] = dg::evaluate( [=](double x){ return n_0 + A*sin( k*x);}, grid);
+        y0[1] = dg::evaluate( [=](double x){ return u_0 + B*sin( k*x);}, vel_grid);
+        if( scheme == "staggered")
+            y0[1] = dg::evaluate( [=](double x){ return
+                    (u_0+B*sin(k*x))*(n_0+A*sin(k*x));}, vel_grid);
+        if( scheme == "staggered-direct" || scheme == "log-staggered")
             dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
     }
     else if ( "mms" == init)
@@ -710,7 +765,7 @@ int main( int argc, char* argv[])
         if( scheme == "staggered")
             y0[1] = dg::evaluate( [=](double x){ return
                     (u_0+B*sin(k*x))*(n_0+A*sin(k*x));}, vel_grid);
-        if( scheme == "staggered-direct")
+        if( scheme == "staggered-direct" || scheme == "log-staggered")
             dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
     }
 
