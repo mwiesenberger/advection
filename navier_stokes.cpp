@@ -310,22 +310,30 @@ struct NavierStokesExplicit
         }
         else if ( m_scheme == "log-staggered")
         {
-            dg::HVec qST(m_yg[1]), uu(qST), fh(qST), u2(qST), dlnn(u2), du(u2), du2(u2), uh(u2);
+            dg::HVec qST(m_yg[1]), uu(qST), fh(qST), u2(qST), dlnn(u2), du(u2), du2(u2), uh(u2), dn(u2), nn(u2);
             const dg::HVec & lnn = m_yg[0];
             const dg::HVec & uST = m_yg[1];
             for ( unsigned k=1; k<Nx+3; k++)
             {
+                nn[k] = exp( lnn[k]);
                 uu[k] = 0.5*(uST[k]+uST[k-1]); // this is the local shock speed
                 u2[k] = uST[k]*uST[k]/2.;
             }
             for( unsigned k=0; k<Nx+3; k++)
                 dlnn[k] = lnn[k+1]-lnn[k];
+                //dn[k] = nn[k+1]-nn[k];
             for( unsigned k=1; k<Nx+2; k++)
             {
                 qST[k] = upwind( uST[k], lnn[k], lnn[k+1]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
                         "slope-limiter")
                     qST[k] += limiter(uST[k], dlnn[k-1], dlnn[k], dlnn[k+1], 0.5, 0.5);
+                // MW: this works better in 1d but in 3d does not really work well
+                //qST[k] = upwind( uST[k], nn[k], nn[k+1]);
+                //if( m_variant == "slope-limiter-explicit" || m_variant ==
+                //        "slope-limiter")
+                //    qST[k] += limiter(uST[k], dn[k-1], dn[k], dn[k+1], 0.5, 0.5);
+                //qST[k]*= uST[k]; // k + 1/2
             }
             for( unsigned k=1; k<Nx+4; k++)
                 du[k] = uST[k] - uST[k-1];
@@ -339,10 +347,11 @@ struct NavierStokesExplicit
             for( unsigned i=0; i<Nx; i++)
             {
                 unsigned k=i+2;
-                m_density[i] = exp(lnn[k]);
+                m_density[i] = nn[k];
                 m_velocity[i] = uu[k];
                 yp[0][i] = -uu[k]*( qST[k] - qST[k-1])/hx - du[k]/hx;
-                double nSTinv = 2./(exp(lnn[k]) + exp(lnn[k+1]));
+                //yp[0][i] = -( qST[k] - qST[k-1])/nn[k]/hx;
+                double nSTinv = 2./(nn[k] + nn[k+1]);
                 yp[1][i] = -(uu[k+1]*uh[k+1]-uu[k]*uh[k])/2./hx;
                 yp[1][i]+= m_nu_u*nSTinv*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
             }
@@ -719,8 +728,6 @@ int main( int argc, char* argv[])
         double n_l = js["init"].get("n_l", 1.0).asDouble();
         double n_r = js["init"].get("n_r", 1.0).asDouble();
         y0[0] = dg::evaluate( [=](double x){ return x < x_a ? n_l : n_r;}, grid);
-        if( scheme == "staggered-direct" || scheme == "log-staggered")
-            dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
     }
     else if( "riemann" == init)
     {
@@ -735,8 +742,6 @@ int main( int argc, char* argv[])
         if( scheme == "staggered")
             y0[1] = dg::evaluate( [=](double x){ return x < x_a ? n_l*u_l :
                     n_r*u_r;}, vel_grid);
-        if( scheme == "staggered-direct" || scheme == "log-staggered")
-            dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
     }
     else if( "wave" == init)
     {
@@ -750,8 +755,6 @@ int main( int argc, char* argv[])
         if( scheme == "staggered")
             y0[1] = dg::evaluate( [=](double x){ return
                     (u_0+B*sin(k*x))*(n_0+A*sin(k*x));}, vel_grid);
-        if( scheme == "staggered-direct" || scheme == "log-staggered")
-            dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
     }
     else if ( "mms" == init)
     {
@@ -765,9 +768,9 @@ int main( int argc, char* argv[])
         if( scheme == "staggered")
             y0[1] = dg::evaluate( [=](double x){ return
                     (u_0+B*sin(k*x))*(n_0+A*sin(k*x));}, vel_grid);
-        if( scheme == "staggered-direct" || scheme == "log-staggered")
-            dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
     }
+    if( scheme == "staggered-direct" || scheme == "log-staggered")
+        dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
 
     std::string timestepper = js["timestepper"].get( "type", "ERK").asString();
     std::string tableau= js["timestepper"].get("tableau",

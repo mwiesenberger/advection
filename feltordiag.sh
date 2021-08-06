@@ -8,4 +8,4 @@ make -C $FELTOR_PATH/src/feltor/ feltordiag device=omp
 
 input=$(echo $2 | sed -e 's/diag/data/')
 
-$FELTOR_PATH/src/feltor/feltordiag $input $2
+$FELTOR_PATH/src/feltor/feltordiag "config.json" $input $2
