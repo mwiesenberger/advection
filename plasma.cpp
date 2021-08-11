@@ -430,7 +430,7 @@ struct PlasmaImplicitSolver
     PlasmaImplicitSolver( dg::Grid1d g, Json::Value js) :
         m_tmp( {dg::HVec(g.size(), 0.0), dg::HVec ( g.size(), 0.),
                 dg::HVec(g.size(), 0.0), dg::HVec ( g.size(), 0.)}){}
-    Vector copyable() const{
+    const Vector& copyable() const{
         return m_tmp;
     }
     // solve (y + alpha I(t,y) = rhs

@@ -509,14 +509,15 @@ struct NavierStokesImplicitSolver
 {
     NavierStokesImplicitSolver( dg::Grid1d g, Json::Value js) :
         m_tmp( {dg::HVec(g.size(), 0.0), dg::HVec ( g.size(), 0.)}){}
-    std::array<dg::HVec,2> copyable() const{
+    const std::array<dg::HVec,2>& copyable() const{
         return m_tmp;
     }
     // solve (y + alpha I(t,y) = rhs
     void solve( double alpha, NavierStokesImplicit& im, double t, std::array<dg::HVec,2>& y, const std::array<dg::HVec,2>& rhs)
     {
-        im( t, y, m_tmp);
         dg::blas1::copy( rhs[0], y[0]);// I_n = 0
+        im( t, y, m_tmp); //ignores y[1],
+        // writes 0 in m_tmp[0] and updates m_tmp[1]
         dg::blas1::axpby( 1., rhs[1], -alpha, m_tmp[1], y[1]); // u = rhs_u - alpha I_u
     }
     private:
