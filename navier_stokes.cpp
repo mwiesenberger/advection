@@ -270,8 +270,55 @@ struct NavierStokesExplicit
                 }
             }
         }
+        else if ( m_scheme == "velocity-unstaggered")
+        {
+            // same as velocity-staggered, just without the staggering
+            dg::HVec qST(m_yg[1]), uST(qST), dn(qST), du(qST), uh(qST), u2(qST);
+            const dg::HVec & uu = m_yg[1];
+            const dg::HVec & nn = m_yg[0];
+            for ( unsigned k=0; k<Nx+3; k++)
+            {
+                uST[k] = 0.5*(uu[k+1]+uu[k]); // this is the local shock speed
+                u2[k] = uu[k]*uu[k];
+            }
+            for( unsigned k=0; k<Nx+3; k++)
+                dn[k] = nn[k+1]-nn[k];
+            for( unsigned k=1; k<Nx+2; k++)
+            {
+                qST[k] = upwind( uST[k], nn[k], nn[k+1]);
+                if( m_variant == "slope-limiter-explicit" || m_variant ==
+                        "slope-limiter")
+                    qST[k] += limiter(uST[k], dn[k-1], dn[k], dn[k+1], 0.5, 0.5);
+                qST[k]*= uST[k]; // k + 1/2
+            }
+            for( unsigned k=0; k<Nx+3; k++)
+                du[k] = uu[k+1] - uu[k];
+            for ( unsigned k=1; k<Nx+2; k++)
+            {
+                uh[k] = upwind( uST[k], uu[k], uu[k+1]);
+                if( m_variant == "slope-limiter-explicit" || m_variant ==
+                        "slope-limiter")
+                    uh[k] += limiter(uST[k], du[k-1], du[k], du[k+1], 0.5, 0.5);
+                uh[k]*= uST[k]; // k + 1/2
+
+            }
+            for( unsigned i=0; i<Nx; i++)
+            {
+                unsigned k=i+2;
+                m_density[i] = y[0][i];
+                m_velocity[i] = y[1][i];
+                yp[0][i] = -( qST[k] - qST[k-1])/hx;
+
+                yp[1][i] = -(uh[k] - uh[k-1])/2./hx
+                //yp[1][i] = -uu[k]*(uu[k+1] - uu[k-1])/2./hx
+                    - m_alpha*(std::pow(nn[k+1], m_gamma)-std::pow(nn[k-1],
+                                m_gamma))/2./hx/nn[k]
+                    + m_nu_u/nn[k]*(uu[k+1]-2.*uu[k]+uu[k-1])/hx/hx;
+            }
+        }
         else if ( m_scheme == "staggered-direct")
         {
+            //This is the Stegmeir variant
             // y[0] -> ln n
             // y[1] -> u^st
             dg::HVec qST(m_yg[1]), dlnST(qST), uu(qST), q(qST);
