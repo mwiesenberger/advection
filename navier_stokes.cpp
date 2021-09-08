@@ -50,7 +50,7 @@ struct NavierStokesExplicit
         assign_ghost_cells( y[0], m_yg[0], m_bc_n);
         assign_ghost_cells( y[1], m_yg[1], m_bc_u);
         dg::Upwind upwind;
-        dg::SlopeLimiter<dg::MinMod> limiter;
+        SlopeLimiter<MinMod> limiter;
         // ghost cells are shifted by 2
         if ( m_scheme == "upwind")
         {
@@ -177,16 +177,22 @@ struct NavierStokesExplicit
         }
         else if ( m_scheme == "velocity-staggered")
         {
-            dg::HVec qST(m_yg[1]), uu(qST), fh(qST), u2(qST), dn(u2), du(u2), du2(u2), q(u2), uh(u2);
+            dg::HVec qST(m_yg[1]), uu(qST), nST(qST), fh(qST), u2(qST), dn(u2), du(u2), du2(u2), q(u2), uh(u2);
             const dg::HVec & uST = m_yg[1];
             const dg::HVec & nn = m_yg[0];
+
+            for( unsigned k=0; k<Nx+3; k++)
+            {
+                nST[k] = 0.5*(nn[k+1]+nn[k]);
+                dn[k] = nn[k+1]-nn[k];
+            }
             for ( unsigned k=1; k<Nx+3; k++)
             {
-                uu[k] = 0.5*(uST[k]+uST[k-1]); // this is the local shock speed
+                // This one works slightly better (needs less timesteps)
+                uu[k] = 0.5*(uST[k]*nST[k]+uST[k-1]*nST[k-1])/nn[k];
+                //uu[k] = 0.5*(uST[k]+uST[k-1]);
                 u2[k] = uST[k]*uST[k]/2.;
             }
-            for( unsigned k=0; k<Nx+3; k++)
-                dn[k] = nn[k+1]-nn[k];
             for( unsigned k=1; k<Nx+2; k++)
             {
                 qST[k] = upwind( uST[k], nn[k], nn[k+1]);

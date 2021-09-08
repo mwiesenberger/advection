@@ -3,6 +3,114 @@
 // common functions to continuity.cpp, navier_stokes.cpp and plasma.cpp
 namespace equations
 {
+/**
+ * @brief
+ \f$ f(x_1, x_2, ...) = \begin{cases}
+         \min(x_1, x_2, ...) &\text{ for } x_1, x_2, ... >0 \\
+         \max(x_1, x_2, ...) &\text{ for } x_1, x_2, ... <0 \\
+         0 &\text{ else}
+ \end{cases}
+ \f$
+ *
+ * Useful for Slope limiter
+ */
+struct MinMod
+{
+    ///@return minmod(x1, x2)
+#ifdef __CUDACC__
+    template < class T>
+    DG_DEVICE T operator()( T x1, T x2) const
+    {
+        if( x1 > 0 && x2 > 0)
+            return min(x1,x2);
+        else if( x1 < 0 && x2 < 0)
+            return max(x1,x2);
+        return 0.;
+    }
+#else
+    template < class T>
+    T operator()( T x1, T x2) const
+    {
+        if( x1 > 0 && x2 > 0)
+            return std::min(x1,x2);
+        else if( x1 < 0 && x2 < 0)
+            return std::max(x1,x2);
+        return 0.;
+    }
+#endif
+    ///@return minmod(x1, x2, x3);
+    template<class T>
+    DG_DEVICE T operator() ( T x1, T x2, T x3)const
+    {
+        return this-> operator()( this-> operator()( x1, x2), x3);
+    }
+};
+
+
+/**
+ * @brief \f$ f(x_1,x_2) = 2\begin{cases}
+ *  \frac{x_1x_2}{x_1+x_2} &\text{ if } x_1x_2 > 0 \\
+ *  0 & \text { else }
+ *  \end{cases}
+ *  \f$
+ *  @note The first case is the harmonic mean between x_1 and x_2
+ */
+struct VanLeer
+{
+    template<class T>
+    DG_DEVICE T operator()( T x1, T x2) const
+    {
+        if( x1*x2 <= 0)
+            return 0.;
+        return 2.*x1*x2/(x1+x2);
+    }
+};
+
+/**
+ * @brief \f$ \text{up}(v, g_m, g_0, g_p, h_m, h_p ) = \begin{cases}  +h_m \Lambda( g_0, g_m) &\text{ if } v \geq 0 \\
+ *  -h_p \Lambda( g_p, g_0) &\text{ else}
+ *  \end{cases}
+ *  \f$
+ *
+ * @tparam Limiter Any two-dimensional functor
+ * @sa VanLeer, MinMod
+ */
+template<class Limiter>
+struct SlopeLimiter
+{
+    SlopeLimiter() {}
+    SlopeLimiter( Limiter l ) : m_l( l){}
+    template<class T>
+    DG_DEVICE T operator()( T v, T gm, T g0, T gp, T hm, T hp ) const{
+        if( v >= 0)
+            return +hm*m_l( g0, gm);
+        else
+            return -hp*m_l( gp, g0);
+    }
+    private:
+    Limiter m_l;
+};
+/**
+ * @brief \f$ \text{up}(v, g_m, g_0, g_p, h_m, h_p ) = v \begin{cases}  +h_m \Lambda( g_0, g_m) &\text{ if } v \geq 0 \\
+ *  -h_p \Lambda( g_p, g_0) &\text{ else}
+ *  \end{cases}
+ *  \f$
+ *
+ * @tparam Limiter Any two-dimensional functor
+ * @sa VanLeer, MinMod
+ */
+template<class Limiter>
+struct SlopeLimiterProduct
+{
+    SlopeLimiterProduct() {}
+    SlopeLimiterProduct( Limiter l ) : m_s( l){}
+    template<class T>
+    DG_DEVICE T operator()( T v, T gm, T g0, T gp, T hm, T hp ) const{
+        return v*m_s(v,gm,g0,gp,hm,hp);
+    }
+    private:
+    SlopeLimiter<Limiter> m_s;
+};
 dg::Grid1d createGrid( Json::Value grid, dg::bc bcx)
 {
     unsigned Nx = grid.get( "Nx", 48).asUInt();

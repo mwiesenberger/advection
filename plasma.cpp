@@ -191,7 +191,7 @@ struct PlasmaExplicit
         assign_ghost_cells( y[1][1], m_yg[1][1], m_bc_u);
         solve_poisson( t, y[0], m_ghphi);
         dg::Upwind upwind;
-        dg::SlopeLimiter<dg::MinMod> limiter;
+        SlopeLimiter<MinMod> limiter;
         for( unsigned s=0; s<2; s++) // species loop
         {
             if( m_mode == "adiabatic" && s == 0)
