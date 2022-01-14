@@ -32,7 +32,7 @@ jupyter-book build path/to/advection
 To publish changes after the book was built
 ```bash
 cd path/to/advection
-ghp-import -n -f -p _build/html
+ghp-import -n -f -p -o _build/html
 ```
 
 ## How to reproduce the results
