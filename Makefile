@@ -1,15 +1,13 @@
-: ${FELTOR_PATH:="../feltor"}
+device=omp
+FELTOR_PATH=../feltor
 
-CC=g++ #C++ compiler
-CFLAGS=-Wall -std=c++14 -mavx -mfma -DTHRUST_DEVICE_SYSTEM=THRUST_DEVICE_SYSTEM_OMP
-OPT=-O2 -fopenmp # optimization flag
-# it is O2 and not O3 because g++-7 up to g++-8.0 have a bug with fma in -O3,
-# fixed in g++-8.1
+#configure machine
+include $(FELTOR_PATH)/config/default.mk
+include $(FELTOR_PATH)/config/version.mk
+include $(FELTOR_PATH)/config/*.mk
+include $(FELTOR_PATH)/config/devices/devices.mk
 
-#external libraries
-INCLUDE = -I$(HOME)/include    # cusp, thrust, jsoncpp and feltor/inc/dg links
-LIBS=-lnetcdf -lhdf5 -lhdf5_hl  # netcdf library for file output
-JSONLIB=-L$(HOME)/include/json/../../src/lib_json -ljsoncpp # json library for input parameters
+INCLUDE+=-I$(FELTOR_PATH)/inc/
 
 all: continuity navier_stokes plasma
 
