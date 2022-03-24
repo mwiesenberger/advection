@@ -560,21 +560,19 @@ struct NavierStokesImplicit
 
 struct NavierStokesImplicitSolver
 {
-    NavierStokesImplicitSolver( dg::Grid1d g, Json::Value js) :
-        m_tmp( {dg::HVec(g.size(), 0.0), dg::HVec ( g.size(), 0.)}){}
-    const std::array<dg::HVec,2>& copyable() const{
-        return m_tmp;
-    }
-    // solve (y + alpha I(t,y) = rhs
-    void solve( double alpha, NavierStokesImplicit& im, double t, std::array<dg::HVec,2>& y, const std::array<dg::HVec,2>& rhs)
+    NavierStokesImplicitSolver( dg::Grid1d g, Json::Value js, NavierStokesImplicit& im) :
+        m_tmp( {dg::HVec(g.size(), 0.0), dg::HVec ( g.size(), 0.)}), m_im(im){}
+    // solve (y - alpha I(t,y) = rhs
+    void operator()( double alpha, double t, std::array<dg::HVec,2>& y, const std::array<dg::HVec,2>& rhs)
     {
         dg::blas1::copy( rhs[0], y[0]);// I_n = 0
-        im( t, y, m_tmp); //ignores y[1],
+        m_im( t, y, m_tmp); //ignores y[1],
         // writes 0 in m_tmp[0] and updates m_tmp[1]
-        dg::blas1::axpby( 1., rhs[1], -alpha, m_tmp[1], y[1]); // u = rhs_u - alpha I_u
+        dg::blas1::axpby( 1., rhs[1], +alpha, m_tmp[1], y[1]); // u = rhs_u + alpha I_u
     }
     private:
     std::array<dg::HVec,2> m_tmp;
+    NavierStokesImplicit& m_im;
 
 };
 
@@ -834,16 +832,13 @@ int main( int argc, char* argv[])
     double tend = js["output"].get( "tend", 1.0).asDouble();
     unsigned maxout = js["output"].get("maxout", 10).asUInt();
     double deltaT = tend/(double)maxout;
-    dg::ARKStep<std::array<dg::HVec,2> , equations::NavierStokesImplicitSolver>
-        ark_fixed( dg::EXPLICIT_EULER_1_1, dg::IMPLICIT_EULER_1_1, grid, js);
     dg::RungeKutta<std::array<dg::HVec,2> > erk_fixed( "Euler", y0);
 
-    dg::Adaptive<dg::ARKStep<std::array<dg::HVec,2> ,
-        equations::NavierStokesImplicitSolver>> ark_adaptive( "ARK-4-2-3", grid, js);
+    dg::Adaptive<dg::ARKStep<std::array<dg::HVec,2>>> ark_adaptive( "ARK-4-2-3", y0);
+
     dg::Adaptive<dg::ERKStep<std::array<dg::HVec,2> >> erk_adaptive( "Bogacki-Shampine-4-2-3", y0);
     if( timestepper == "ARK")
-        ark_adaptive = dg::Adaptive<dg::ARKStep<std::array<dg::HVec,2> ,
-            equations::NavierStokesImplicitSolver>>( tableau, grid, js);
+        ark_adaptive = dg::Adaptive<dg::ARKStep<std::array<dg::HVec,2>>>( tableau, y0);
     else if( timestepper == "ERK")
     {
         erk_fixed = dg::RungeKutta<std::array<dg::HVec,2> >( tableau, y0);
@@ -852,6 +847,7 @@ int main( int argc, char* argv[])
     double dt = 1e-6, time = 0.;
     equations::NavierStokesExplicit ex( grid, vel_grid, js);
     equations::NavierStokesImplicit im( ex);
+    equations::NavierStokesImplicitSolver solver( grid, js, im);
 
     // Set up netcdf
     std::string inputfile = js.toStyledString(); //save input without comments, which is important if netcdf file is later read by another parser
@@ -952,7 +948,7 @@ int main( int argc, char* argv[])
             std::cout << "time " <<time <<" "<<dt<<" "<<t_output<<"\n";
             // Compute a step and error
             if( timestepper == "ARK")
-                ark_adaptive.step( ex, im, time, y0, time, y0, dt,
+                ark_adaptive.step( std::tie(ex, im, solver), time, y0, time, y0, dt,
                     dg::pid_control, dg::l2norm, rtol, atol);
             else if( timestepper == "ERK")
                 erk_adaptive.step( ex, time, y0, time, y0, dt,
@@ -994,10 +990,7 @@ int main( int argc, char* argv[])
     //for( unsigned i=0; i<maxout; i++)
     //{
     //    t.tic();
-    //    if( timestepper == "ARK")
-    //        for( unsigned k=0; k<NT; k++)
-    //            ark_fixed.step( ex, im, time, y0, time, y0, dt, delta);
-    //    else if( timestepper == "ERK")
+    //    if( timestepper == "ERK")
     //        for( unsigned k=0; k<NT; k++)
     //            erk_fixed.step( ex, time, y0, time, y0, dt);
     //    t.toc();

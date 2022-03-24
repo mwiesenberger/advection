@@ -96,7 +96,6 @@ struct PlasmaExplicit
         m_eps = js["poisson"].get("eps", 1e-6).asDouble();
         m_phi.resize(g.size(), 0.);
         m_ghphi.resize(g.size()+4, 0.);
-        m_precond.resize( g.size(), 1./m_eps_D);
         m_rhs.resize( g.size(), 0.);
         m_norm.resize( g.size(), g.h());
         m_source.resize( g.size(), 0.);
@@ -105,18 +104,18 @@ struct PlasmaExplicit
         {
             unsigned max_inner = js["poisson"].get("max_inner", 30).asUInt();
             unsigned max_outer = js["poisson"].get("max_outer", 3).asUInt();
-            unsigned restarts = g.size()/max_outer;
+            unsigned max_restarts = 2*g.size()/max_inner;
 
-            m_lgmres.construct( m_phi, max_inner, max_outer, restarts);
+            m_lgmres.construct( m_phi, max_inner, max_outer, max_restarts);
         }
         else if( "cg" == m_method)
         {
-            m_pcg.construct( m_phi, m_phi.size());
+            m_pcg.construct( m_phi, 2*m_phi.size());
         }
         else if( "bicgstab" == m_method)
         {
             unsigned l_input = js["poisson"].get( "l_input", 2).asUInt();
-            m_bicg.construct( m_phi, m_phi.size(), l_input);
+            m_bicg.construct( m_phi, 2*m_phi.size(), l_input);
         }
         else if( "anderson" == m_method)
         {
@@ -157,23 +156,21 @@ struct PlasmaExplicit
             dg::blas1::axpby( 1., tmpN, 1., m_rhs);
         }
         if( m_method == "gmres")
-            iter = m_lgmres.solve( m_poisson, m_phi, m_rhs, m_precond,
+            iter = m_lgmres.solve( m_poisson, m_phi, m_rhs, 1.,
                     m_norm, m_eps, m_eps_D);
         else if( m_method == "cg")
-            iter = m_pcg( m_poisson, m_phi, m_rhs, m_precond,
+            iter = m_pcg.solve( m_poisson, m_phi, m_rhs, 1.,
                     m_norm, m_eps, m_eps_D);
         else if( m_method == "bicgstab")
-            iter = m_bicg.solve( m_poisson, m_phi, m_rhs, m_precond,
+            iter = m_bicg.solve( m_poisson, m_phi, m_rhs, 1.,
                     m_norm, m_eps, m_eps_D);
         else if ( m_method == "anderson")
         {
             if( m_mode == "adiabatic")
                 dg::blas1::transform( nn[1], m_phi, dg::LN<double>());
             iter = m_anderson.solve( m_poisson, m_phi, m_rhs, m_norm, m_eps,
-                    m_eps*m_eps_D, m_phi.size(), m_damping, m_mMax, false);
+                    m_eps*m_eps_D, 2*m_phi.size(), m_damping, m_mMax, false);
         }
-        if( iter == m_g.N())
-            throw std::runtime_error( "Solution of Poisson equation does not converge!\n");
         m_old_phi.update( t, m_phi);
         std::cout << "Solution of Poisson equation took "<<iter<<" iterations\n";
         assign_ghost_cells( m_phi, m_ghphi, m_bc_p);
@@ -366,11 +363,11 @@ struct PlasmaExplicit
     private:
     std::string m_scheme, m_variant, m_init, m_method, m_mode;
     Vector m_yg;
-    dg::HVec m_precond, m_norm, m_phi, m_ghphi, m_rhs, m_source;
+    dg::HVec m_norm, m_phi, m_ghphi, m_rhs, m_source;
     std::array<dg::HVec,2> m_velocity; // stores the velocity on non-staggered grid
     dg::Grid1d m_g, m_vel_g;
     dg::LGMRES<dg::HVec> m_lgmres;
-    dg::CG<dg::HVec> m_pcg;
+    dg::PCG<dg::HVec> m_pcg;
     dg::BICGSTABl<dg::HVec> m_bicg;
     dg::AndersonAcceleration<dg::HVec> m_anderson;
     Poisson1d m_poisson;
@@ -427,22 +424,20 @@ struct PlasmaImplicit
 
 struct PlasmaImplicitSolver
 {
-    PlasmaImplicitSolver( dg::Grid1d g, Json::Value js) :
+    PlasmaImplicitSolver( dg::Grid1d g, Json::Value js, PlasmaImplicit& im) :
         m_tmp( {dg::HVec(g.size(), 0.0), dg::HVec ( g.size(), 0.),
-                dg::HVec(g.size(), 0.0), dg::HVec ( g.size(), 0.)}){}
-    const Vector& copyable() const{
-        return m_tmp;
-    }
-    // solve (y + alpha I(t,y) = rhs
-    void solve( double alpha, PlasmaImplicit& im, double t, Vector& y, const Vector& rhs)
+                dg::HVec(g.size(), 0.0), dg::HVec ( g.size(), 0.)}), m_im(im){}
+    // solve (y - alpha I(t,y) = rhs
+    void operator()( double alpha, double t, Vector& y, const Vector& rhs)
     {
         dg::blas1::copy( rhs[0], y[0]);// I_n = 0
-        im( t, y, m_tmp); //ignores y[1], solves Poisson at time t for y[0] and
+        m_im( t, y, m_tmp); //ignores y[1], solves Poisson at time t for y[0] and
         // writes 0 in m_tmp[0] and updates m_tmp[1]
-        dg::blas1::axpby( 1., rhs[1], -alpha, m_tmp[1], y[1]); // u = rhs_u - alpha I_u
+        dg::blas1::axpby( 1., rhs[1], +alpha, m_tmp[1], y[1]); // u = rhs_u + alpha I_u
     }
     private:
     Vector m_tmp;
+    PlasmaImplicit& m_im;
 
 };
 
@@ -693,24 +688,17 @@ int main( int argc, char* argv[])
     double tend = js["output"].get( "tend", 1.0).asDouble();
     unsigned maxout = js["output"].get("maxout", 10).asUInt();
     double deltaT = tend/(double)maxout;
-    dg::ARKStep<Vector, equations::PlasmaImplicitSolver>
-        ark_fixed( dg::EXPLICIT_EULER_1_1, dg::IMPLICIT_EULER_1_1, grid, js);
-    dg::RungeKutta<Vector> erk_fixed( "Euler", y0);
 
-    dg::Adaptive<dg::ARKStep<Vector,
-        equations::PlasmaImplicitSolver>> ark_adaptive( "ARK-4-2-3", grid, js);
+    dg::Adaptive<dg::ARKStep<Vector>> ark_adaptive( "ARK-4-2-3", y0);
     dg::Adaptive<dg::ERKStep<Vector>> erk_adaptive( "Bogacki-Shampine-4-2-3", y0);
     if( timestepper == "ARK")
-        ark_adaptive = dg::Adaptive<dg::ARKStep<Vector,
-            equations::PlasmaImplicitSolver>>( tableau, grid, js);
+        ark_adaptive = dg::Adaptive<dg::ARKStep<Vector >>( tableau, y0);
     else if( timestepper == "ERK")
-    {
-        erk_fixed = dg::RungeKutta<Vector>( tableau, y0);
         erk_adaptive = dg::Adaptive<dg::ERKStep<Vector >>( tableau, y0);
-    }
     double dt = 1e-8, time = 0.;
     equations::PlasmaExplicit ex( grid, vel_grid, js);
     equations::PlasmaImplicit im( ex);
+    equations::PlasmaImplicitSolver solver( grid, js, im);
 
     // Set up netcdf
     std::string inputfile = js.toStyledString(); //save input without comments, which is important if netcdf file is later read by another parser
@@ -811,7 +799,7 @@ int main( int argc, char* argv[])
             std::cout << "time " <<time <<" "<<dt<<" "<<t_output<<"\n";
             // Compute a step and error
             if( timestepper == "ARK")
-                ark_adaptive.step( ex, im, time, y0, time, y0, dt,
+                ark_adaptive.step( std::tie(ex, im, solver), time, y0, time, y0, dt,
                     dg::pid_control, dg::l2norm, rtol, atol);
             else if( timestepper == "ERK")
                 erk_adaptive.step( ex, time, y0, time, y0, dt,
