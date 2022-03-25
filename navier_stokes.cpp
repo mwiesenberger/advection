@@ -620,13 +620,45 @@ std::vector<Record> diagnostics_list = {
             {
                 double alpha = v.js["physical"].get("alpha",2).asDouble();
                 double gamma = v.js["physical"].get("gamma",2).asDouble();
+                if( gamma == 1)
+                {
+                    //Hayati (2012), Transport in Porous Media, 93, 13-27
+                    //https://link.springer.com/content/pdf/10.1007/s11242-012-9940-0.pdf
+                    double x_a = v.js["init"].get("x_a", 0.1).asDouble();
+                    double h_l = v.js["init"].get("n_l", 1.0).asDouble();
+                    double h_r = v.js["init"].get("n_r", 1.0).asDouble();
+                    const double g = sqrt(alpha);
+                    double x_A = x_a - v.time*g;
+
+                    // use Eq (27) for root finding
+                    double fmm = 1., fmp = 10.;
+                    auto lambda = [=](double fm) {
+                            return fm*log(h_l/h_r * g*g) - 2.*fm *log (fm*g) + 1.- fm*fm; };
+                    dg::bisection1d( lambda, fmm, fmp, 1e-6);
+                    double fm = (fmm+fmp)/2.;
+
+                    double x_B = x_a + v.time*g*(fm - 1./fm - 1.);
+                    double x_C = x_a + v.time*fm*g;
+                    result = dg::evaluate( [=](double x){
+                            if( x <= x_A)
+                                return h_l;
+                            if( x <= x_B)
+                                return h_l*exp( -(x-x_A)/(v.time*g));
+                            if( x <= x_C)
+                                return h_l*exp(1./fm - fm);
+                            return h_r;}, v.grid);
+
+                }
                 if( gamma == 2)
                 {
+                    // Delestre (2012), Numerical Methods in Fluids
+                    // https://onlinelibrary.wiley.com/doi/epdf/10.1002/fld.3741
+                    // Section 4.1.1
                     double x_a = v.js["init"].get("x_a", 0.1).asDouble();
                     double h_l = v.js["init"].get("n_l", 1.0).asDouble();
                     double h_r = v.js["init"].get("n_r", 1.0).asDouble();
                     const double g = alpha*2;
-                    double x_A = x_a - v.time*sqrt( 2*alpha*h_l);
+                    double x_A = x_a - v.time*sqrt( g*h_l);
                     double cmm = sqrt(g*h_l), cmp = sqrt(g*h_r);
                     auto lambda = [=](double cm) {
                             return -8.*g*h_r*cm*cm*(sqrt(g*h_l) -
@@ -671,13 +703,38 @@ std::vector<Record> diagnostics_list = {
             {
                 double alpha = v.js["physical"].get("alpha",2).asDouble();
                 double gamma = v.js["physical"].get("gamma",2).asDouble();
+                if( gamma == 1)
+                {
+                    double x_a = v.js["init"].get("x_a", 0.1).asDouble();
+                    double h_l = v.js["init"].get("n_l", 1.0).asDouble();
+                    double h_r = v.js["init"].get("n_r", 1.0).asDouble();
+                    const double g = sqrt(alpha);
+                    double x_A = x_a - v.time*g;
+
+                    double fmm = 1., fmp = 10.;
+                    auto lambda = [=](double fm) {
+                            return fm*log(h_l/h_r * g*g) - 2.*fm *log (fm*g) + 1.- fm*fm; };
+                    dg::bisection1d( lambda, fmm, fmp, 1e-6);
+                    double fm = (fmm+fmp)/2.;
+
+                    double x_B = x_a + v.time*g*(fm - 1./fm - 1.);
+                    double x_C = x_a + v.time*fm*g;
+                    result = dg::evaluate( [=](double x){
+                            if( x <= x_A)
+                                return 0.;
+                            if( x <= x_B)
+                                return (x-x_a)/v.time + g;
+                            if( x <= x_C)
+                                return g*(fm - 1./fm);
+                            return 0.;}, v.grid);
+                }
                 if( gamma == 2)
                 {
                     double x_a = v.js["init"].get("x_a", 0.1).asDouble();
                     double h_l = v.js["init"].get("n_l", 1.0).asDouble();
                     double h_r = v.js["init"].get("n_r", 1.0).asDouble();
                     const double g = alpha*2;
-                    double x_A = x_a - v.time*sqrt( 2*alpha*h_l);
+                    double x_A = x_a - v.time*sqrt( g*h_l);
                     double cmm = sqrt(g*h_l), cmp = sqrt(g*h_r);
                     auto lambda = [=](double cm) {
                             return -8.*g*h_r*cm*cm*(sqrt(g*h_l) -
