@@ -21,6 +21,7 @@ struct Continuity
 
     void operator() ( double t, const dg::HVec & y, dg::HVec& yp)
     {
+        m_called++;
         unsigned Nx = m_g.N();
         double hx = m_g.h();
         assign_ghost_cells( y, m_yg, m_g.bcx());
@@ -61,7 +62,9 @@ struct Continuity
             yp[i] +=  m_nu*( m_yg[k+1]-2.*m_yg[k]+m_yg[k-1])/hx/hx;
         }
     }
+    unsigned called() const { return m_called;}
     private:
+    unsigned m_called = 0;
     std::string m_scheme;
     dg::HVec m_yg;
     dg::Grid1d m_g;
@@ -70,13 +73,13 @@ struct Continuity
 };
 
 struct Variables{
+    Continuity& f;
     const dg::Grid1d& grid;
     const dg::HVec& y0;
     const double& time;
     Json::Value& js;
     double duration;
-    unsigned nfailed;
-    unsigned nsteps;
+    const unsigned* nfailed;
 };
 
 struct Record1d{
@@ -120,19 +123,19 @@ std::vector<Record> diagnostics_list = {
     }
 };
 std::vector<Record1d> diagnostics1d_list = {
-    {"failed", "Number of failed steps",
+    {"failed", "Accumulated Number of failed steps",
         []( Variables& v ) {
-            return v.nfailed;
+            return *v.nfailed;
         }
     },
-    {"duration", "Computation time for the latest output (i.e. nsteps timesteps)",
+    {"duration", "Computation time for the latest output",
         []( Variables& v ) {
             return v.duration;
         }
     },
-    {"nsteps", "Number of calls to the timestepper (including failed steps)",
+    {"nsteps", "Accumulated Number of calls to the RHS functor (including failed steps)",
         [](Variables& v) {
-            return v.nsteps;
+            return v.f.called();
         }
     }
 };
@@ -178,8 +181,10 @@ int main( int argc, char* argv[])
     unsigned maxout = js["output"].get("maxout", 10).asUInt();
     double deltaT = tend/(double)maxout;
     dg::Adaptive<dg::ERKStep<dg::HVec>> adaptive( tableau,y0);
-    double dt = 1e-3, time = 0.;
+    double time = 0.;
     equations::Continuity rhs( grid,js);
+    dg::AdaptiveTimeloop<dg::HVec> timeloop( adaptive,
+            rhs, dg::pid_control, dg::l2norm, rtol, atol);
 
     // Set up netcdf
     std::string inputfile = js.toStyledString(); //save input without comments, which is important if netcdf file is later read by another parser
@@ -249,7 +254,7 @@ int main( int argc, char* argv[])
     size_t start[2] = {0, 0};
     size_t count[2] = {1, grid.size()};
     dg::HVec result = y0;
-    equations::Variables var = {grid, y0, time, js, 0., 0, 0};
+    equations::Variables var = {rhs, grid, y0, time, js, 0., &adaptive.nfailed()};
     for( auto& record : equations::diagnostics_list)
     {
         record.function( result, var);
@@ -265,25 +270,10 @@ int main( int argc, char* argv[])
 
     //////////////////Main time loop ///////////////////////////////////
     dg::Timer t;
-    double t_output = deltaT;
-    while( (tend - time) > 1e-14)
+    for( unsigned u=1; u<=maxout; u++)
     {
         t.tic();
-        while( time < t_output)
-        {
-            if( time+dt > t_output)
-                dt = t_output-time;
-            // Compute a step and error
-            adaptive.step( rhs, time, y0, time, y0, dt,
-                    dg::pid_control, dg::l2norm, rtol, atol);
-            var.nsteps++;
-            if( adaptive.failed())
-            {
-                var.nfailed++;
-                continue;
-            }
-        }
-        t_output += deltaT;
+        timeloop.integrate( time, y0, time+deltaT, y0, dg::to::exact);
         t.toc();
         var.duration = t.diff();
         /////////////////////////////////output/////////////////////////
@@ -302,6 +292,7 @@ int main( int argc, char* argv[])
         }
         err = nc_put_vara_double( ncid, tvarID, start, count, &time);
     }
+
     err = nc_close(ncid);
 
     return 0;

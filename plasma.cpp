@@ -451,7 +451,7 @@ struct Variables{
     const double& time;
     Json::Value& js;
     double duration;
-    unsigned nfailed;
+    const unsigned* nfailed;
 };
 
 struct Record1d{
@@ -575,7 +575,7 @@ std::vector<Record> diagnostics_list = {
 std::vector<Record1d> diagnostics1d_list = {
     {"failed", "Accumulated Number of failed steps",
         []( Variables& v ) {
-            return v.nfailed;
+            return *v.nfailed;
         }
     },
     {"duration", "Computation time for the latest output",
@@ -583,7 +583,7 @@ std::vector<Record1d> diagnostics1d_list = {
             return v.duration;
         }
     },
-    {"nsteps", "Accumulated Number of calls to the timestepper (including failed steps)",
+    {"nsteps", "Accumulated Number of calls to the RHS functor (including failed steps)",
         [](Variables& v) {
             return v.f.called();
         }
@@ -680,6 +680,10 @@ int main( int argc, char* argv[])
     if( "adiabatic" == mode)
         y0[0][0] = y0[1][0] = dg::evaluate( dg::zero, grid);
 
+    equations::PlasmaExplicit ex( grid, vel_grid, js);
+    equations::PlasmaImplicit im( ex);
+    equations::PlasmaImplicitSolver solver( grid, js, im);
+
     std::string timestepper = js["timestepper"].get( "type", "ERK").asString();
     std::string tableau= js["timestepper"].get("tableau",
             "ARK-4-2-3").asString();
@@ -689,16 +693,28 @@ int main( int argc, char* argv[])
     unsigned maxout = js["output"].get("maxout", 10).asUInt();
     double deltaT = tend/(double)maxout;
 
-    dg::Adaptive<dg::ARKStep<Vector>> ark_adaptive( "ARK-4-2-3", y0);
-    dg::Adaptive<dg::ERKStep<Vector>> erk_adaptive( "Bogacki-Shampine-4-2-3", y0);
+    dg::Adaptive<dg::ARKStep<Vector>> ark_adaptive;
+    dg::Adaptive<dg::ERKStep<Vector >> erk_adaptive;
+    auto odeint = std::unique_ptr<dg::aTimeloop<Vector>>();
+    double time = 0.;
+    const unsigned* nfailed = nullptr;
     if( timestepper == "ARK")
-        ark_adaptive = dg::Adaptive<dg::ARKStep<Vector >>( tableau, y0);
+    {
+        ark_adaptive = { tableau, y0};
+        nfailed = &ark_adaptive.nfailed();
+        dg::AdaptiveTimeloop<Vector> loop( ark_adaptive, std::tie( ex, im,
+                    solver), dg::pid_control, dg::l2norm, rtol, atol);
+        loop.set_dt(1e-8);
+        odeint = std::make_unique<dg::AdaptiveTimeloop<Vector>>(loop);
+    }
     else if( timestepper == "ERK")
-        erk_adaptive = dg::Adaptive<dg::ERKStep<Vector >>( tableau, y0);
-    double dt = 1e-8, time = 0.;
-    equations::PlasmaExplicit ex( grid, vel_grid, js);
-    equations::PlasmaImplicit im( ex);
-    equations::PlasmaImplicitSolver solver( grid, js, im);
+    {
+        erk_adaptive = { tableau, y0};
+        dg::AdaptiveTimeloop<Vector> loop( erk_adaptive, ex,
+                dg::pid_control, dg::l2norm, rtol, atol);
+        loop.set_dt(1e-8);
+        odeint = std::make_unique<dg::AdaptiveTimeloop<Vector>>(loop);
+    }
 
     // Set up netcdf
     std::string inputfile = js.toStyledString(); //save input without comments, which is important if netcdf file is later read by another parser
@@ -768,7 +784,7 @@ int main( int argc, char* argv[])
     size_t start[2] = {0, 0};
     size_t count[2] = {1, grid.size()};
     dg::HVec result = y0[0][0];
-    equations::Variables var = {ex, grid, y0, time, js, 0., 0};
+    equations::Variables var = {ex, grid, y0, time, js, 0., nfailed};
     {   // update internal quantities
         Vector tmp ( y0);
         ex( time, y0, tmp);
@@ -788,29 +804,10 @@ int main( int argc, char* argv[])
 
     //////////////////Main time loop ///////////////////////////////////
     dg::Timer t;
-    double t_output = deltaT;
-    while( (tend - time) > 1e-14 )
+    for( unsigned u=1; u<=maxout; u++)
     {
         t.tic();
-        while( time < t_output )
-        {
-            if( time+dt > t_output)
-                dt = t_output-time;
-            std::cout << "time " <<time <<" "<<dt<<" "<<t_output<<"\n";
-            // Compute a step and error
-            if( timestepper == "ARK")
-                ark_adaptive.step( std::tie(ex, im, solver), time, y0, time, y0, dt,
-                    dg::pid_control, dg::l2norm, rtol, atol);
-            else if( timestepper == "ERK")
-                erk_adaptive.step( ex, time, y0, time, y0, dt,
-                    dg::pid_control, dg::l2norm, rtol, atol);
-            if( erk_adaptive.failed() || ark_adaptive.failed())
-            {
-                var.nfailed++;
-                continue;
-            }
-        }
-        t_output += deltaT;
+        odeint->integrate( time, y0, time+deltaT, y0, dg::to::exact);
         t.toc();
         var.duration = t.diff();
         /////////////////////////////////output/////////////////////////
@@ -829,6 +826,7 @@ int main( int argc, char* argv[])
         }
         err = nc_put_vara_double( ncid, tvarID, start, count, &time);
     }
+
     err = nc_close(ncid);
 
     return 0;

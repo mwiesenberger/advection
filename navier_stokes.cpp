@@ -6,6 +6,8 @@
 #include "dg/file/file.h"
 #include "common.h"
 
+using Vector = std::array<dg::HVec,2>;
+
 namespace equations
 {
 
@@ -40,7 +42,7 @@ struct NavierStokesExplicit
 
     const dg::HVec& density() const{return m_density;}
     const dg::HVec& velocity() const{return m_velocity;}
-    void operator() ( double t, const std::array<dg::HVec,2> & y, std::array<dg::HVec, 2>& yp)
+    void operator() ( double t, const Vector & y, Vector& yp)
     {
         m_called++;
         // y[0] -> density
@@ -490,7 +492,7 @@ struct NavierStokesExplicit
     unsigned called() const { return m_called;}
     private:
     std::string m_scheme, m_variant, m_init;
-    std::array<dg::HVec,2> m_yg;
+    Vector m_yg;
     dg::HVec m_velocity; // stores the velocity on non-staggered grid
     dg::HVec m_density;
     dg::Grid1d m_g, m_vel_g;
@@ -504,7 +506,7 @@ struct NavierStokesImplicit
 {
     NavierStokesImplicit( NavierStokesExplicit& ex) : m_ex(ex){}
 
-    void operator() ( double t, const std::array<dg::HVec,2> & y, std::array<dg::HVec,2>& yp)
+    void operator() ( double t, const Vector & y, Vector& yp)
     {
         dg::blas1::copy( 0., yp);
         unsigned Nx = m_ex.m_g.N();
@@ -563,7 +565,7 @@ struct NavierStokesImplicitSolver
     NavierStokesImplicitSolver( dg::Grid1d g, Json::Value js, NavierStokesImplicit& im) :
         m_tmp( {dg::HVec(g.size(), 0.0), dg::HVec ( g.size(), 0.)}), m_im(im){}
     // solve (y - alpha I(t,y) = rhs
-    void operator()( double alpha, double t, std::array<dg::HVec,2>& y, const std::array<dg::HVec,2>& rhs)
+    void operator()( double alpha, double t, Vector& y, const Vector& rhs)
     {
         dg::blas1::copy( rhs[0], y[0]);// I_n = 0
         m_im( t, y, m_tmp); //ignores y[1],
@@ -571,7 +573,7 @@ struct NavierStokesImplicitSolver
         dg::blas1::axpby( 1., rhs[1], +alpha, m_tmp[1], y[1]); // u = rhs_u + alpha I_u
     }
     private:
-    std::array<dg::HVec,2> m_tmp;
+    Vector m_tmp;
     NavierStokesImplicit& m_im;
 
 };
@@ -582,11 +584,11 @@ struct NavierStokesImplicitSolver
 struct Variables{
     NavierStokesExplicit& f;
     const dg::Grid1d& grid;
-    const std::array<dg::HVec,2>& y0;
+    const Vector& y0;
     const double& time;
     Json::Value& js;
     double duration;
-    unsigned nfailed;
+    const unsigned* nfailed;
 };
 
 struct Record1d{
@@ -790,7 +792,7 @@ std::vector<Record> diagnostics_list = {
 std::vector<Record1d> diagnostics1d_list = {
     {"failed", "Accumulated Number of failed steps",
         []( Variables& v ) {
-            return v.nfailed;
+            return *v.nfailed;
         }
     },
     {"duration", "Computation time for the latest output",
@@ -798,7 +800,7 @@ std::vector<Record1d> diagnostics1d_list = {
             return v.duration;
         }
     },
-    {"nsteps", "Accumulated Number of calls to the timestepper (including failed steps)",
+    {"nsteps", "Accumulated Number of calls to the RHS functor (including failed steps)",
         [](Variables& v) {
             return v.f.called();
         }
@@ -829,7 +831,7 @@ int main( int argc, char* argv[])
     if ( "staggered" == scheme || "velocity-staggered" == scheme ||
             "staggered-direct" == scheme || "log-staggered" == scheme)
         vel_grid = equations::createStaggeredGrid( js["grid"], dg::PER);
-    std::array<dg::HVec,2> y0 = {dg::evaluate( dg::zero, grid), dg::evaluate( dg::zero, grid)};
+    Vector y0 = {dg::evaluate( dg::zero, grid), dg::evaluate( dg::zero, grid)};
     if( "step" == init)
     {
         // This is the classical Riemann problem (Dam break for shallow water)
@@ -881,6 +883,10 @@ int main( int argc, char* argv[])
     if( scheme == "staggered-direct" || scheme == "log-staggered")
         dg::blas1::transform( y0[0], y0[0], dg::LN<double>());
 
+    equations::NavierStokesExplicit ex( grid, vel_grid, js);
+    equations::NavierStokesImplicit im( ex);
+    equations::NavierStokesImplicitSolver solver( grid, js, im);
+
     std::string timestepper = js["timestepper"].get( "type", "ERK").asString();
     std::string tableau= js["timestepper"].get("tableau",
             "ARK-4-2-3").asString();
@@ -889,22 +895,28 @@ int main( int argc, char* argv[])
     double tend = js["output"].get( "tend", 1.0).asDouble();
     unsigned maxout = js["output"].get("maxout", 10).asUInt();
     double deltaT = tend/(double)maxout;
-    dg::RungeKutta<std::array<dg::HVec,2> > erk_fixed( "Euler", y0);
 
-    dg::Adaptive<dg::ARKStep<std::array<dg::HVec,2>>> ark_adaptive( "ARK-4-2-3", y0);
-
-    dg::Adaptive<dg::ERKStep<std::array<dg::HVec,2> >> erk_adaptive( "Bogacki-Shampine-4-2-3", y0);
+    dg::Adaptive<dg::ARKStep<Vector>> ark_adaptive;
+    dg::Adaptive<dg::ERKStep<Vector >> erk_adaptive;
+    auto odeint = std::unique_ptr<dg::aTimeloop<Vector>>();
+    double time = 0.;
+    const unsigned* nfailed = nullptr;
     if( timestepper == "ARK")
-        ark_adaptive = dg::Adaptive<dg::ARKStep<std::array<dg::HVec,2>>>( tableau, y0);
+    {
+        ark_adaptive = { tableau, y0};
+        odeint = std::make_unique<dg::AdaptiveTimeloop<Vector>>(
+                    ark_adaptive, std::tie( ex, im, solver), dg::pid_control,
+                    dg::l2norm, rtol, atol);
+        nfailed = &ark_adaptive.nfailed();
+    }
     else if( timestepper == "ERK")
     {
-        erk_fixed = dg::RungeKutta<std::array<dg::HVec,2> >( tableau, y0);
-        erk_adaptive = dg::Adaptive<dg::ERKStep<std::array<dg::HVec,2> >>( tableau, y0);
+        erk_adaptive = { tableau, y0};
+        odeint = std::make_unique<dg::AdaptiveTimeloop<Vector>>(
+                    erk_adaptive, ex, dg::pid_control,
+                    dg::l2norm, rtol, atol);
+        nfailed = &erk_adaptive.nfailed();
     }
-    double dt = 1e-6, time = 0.;
-    equations::NavierStokesExplicit ex( grid, vel_grid, js);
-    equations::NavierStokesImplicit im( ex);
-    equations::NavierStokesImplicitSolver solver( grid, js, im);
 
     // Set up netcdf
     std::string inputfile = js.toStyledString(); //save input without comments, which is important if netcdf file is later read by another parser
@@ -974,7 +986,7 @@ int main( int argc, char* argv[])
     size_t start[2] = {0, 0};
     size_t count[2] = {1, grid.size()};
     dg::HVec result = y0[0];
-    equations::Variables var = {ex, grid, y0, time, js, 0., 0};
+    equations::Variables var = {ex, grid, y0, time, js, 0., nfailed};
     {   // update internal velocity
         std::array<dg::HVec , 2> tmp ( y0);
         ex( time, y0, tmp);
@@ -994,31 +1006,10 @@ int main( int argc, char* argv[])
 
     //////////////////Main time loop ///////////////////////////////////
     dg::Timer t;
-    double t_output = deltaT;
-    while( (tend - time) > 1e-14 )
+    for( unsigned u=1; u<=maxout; u++)
     {
         t.tic();
-        while( time < t_output )
-        {
-            if( time+dt > t_output)
-                dt = t_output-time;
-            std::cout << "time " <<time <<" "<<dt<<" "<<t_output<<"\n";
-            // Compute a step and error
-            if( timestepper == "ARK")
-                ark_adaptive.step( std::tie(ex, im, solver), time, y0, time, y0, dt,
-                    dg::pid_control, dg::l2norm, rtol, atol);
-            else if( timestepper == "ERK")
-                erk_adaptive.step( ex, time, y0, time, y0, dt,
-                    dg::pid_control, dg::l2norm, rtol, atol);
-            if( dt < 1e-6)
-                throw dg::Error(dg::Message(_ping_)<<"Adaptive failed to converge! dt = "<<std::scientific<<dt);
-            if( erk_adaptive.failed() || ark_adaptive.failed())
-            {
-                var.nfailed++;
-                continue;
-            }
-        }
-        t_output += deltaT;
+        odeint->integrate( time, y0, time+deltaT, y0, dg::to::exact);
         t.toc();
         var.duration = t.diff();
         /////////////////////////////////output/////////////////////////
@@ -1038,36 +1029,6 @@ int main( int argc, char* argv[])
         err = nc_put_vara_double( ncid, tvarID, start, count, &time);
     }
 
-    //dg::Timer t;
-    //unsigned NT = 1000;
-    //dt = grid.h()/ 20.;//tend / (double)NT/(double)maxout;
-    //std::cout << "dt "<<dt<<"\n";
-    //NT = ( tend/dt/(maxout));
-    //std::array<dg::HVec,2> delta(y0);
-    //for( unsigned i=0; i<maxout; i++)
-    //{
-    //    t.tic();
-    //    if( timestepper == "ERK")
-    //        for( unsigned k=0; k<NT; k++)
-    //            erk_fixed.step( ex, time, y0, time, y0, dt);
-    //    t.toc();
-    //    var.duration = t.diff();
-    //    /////////////////////////////////output/////////////////////////
-    //    std::cout << "Output time "<<time<<" of "<<tend<<" "<<var.nsteps<<"\n";
-    //    start[0]++;
-    //    for( auto& record : equations::diagnostics_list)
-    //    {
-    //        record.function( result, var);
-    //        err = nc_put_vara_double( ncid, id2d.at(record.name), start, count,
-    //                result.data());
-    //    }
-    //    for( auto& record : equations::diagnostics1d_list)
-    //    {
-    //        double result = record.function( var);
-    //        nc_put_vara_double( ncid, id1d.at(record.name), start, count, &result);
-    //    }
-    //    err = nc_put_vara_double( ncid, tvarID, start, count, &time);
-    //}
     err = nc_close(ncid);
 
     return 0;
