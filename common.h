@@ -111,23 +111,35 @@ struct SlopeLimiterProduct
     private:
     SlopeLimiter<Limiter> m_s;
 };
-dg::Grid1d createGrid( Json::Value grid, dg::bc bcx)
+dg::Grid1d createGrid( dg::file::WrappedJsonValue js, dg::bc bcx)
 {
+    unsigned n=1;
+    dg::file::WrappedJsonValue grid = js["grid"];
+    std::string scheme = js["advection"].get("type", "staggered").asString();
+    if (scheme.find("dg") != std::string::npos) {
+        n = grid.get("n", 3).asUInt();
+    }
     unsigned Nx = grid.get( "Nx", 48).asUInt();
     double x0 = grid["x"].get( 0u, 0.).asDouble();
     double x1 = grid["x"].get( 1u, 1.).asDouble();
-    return dg::Grid1d( x0, x1, 1, Nx, bcx);
+    return dg::Grid1d( x0, x1, n, Nx, bcx);
 }
 
 // Actually the staggered grid should have one cell more than the collocated grid?
 // | x | x | x | ... | x |
-dg::Grid1d createStaggeredGrid( Json::Value grid, dg::bc bcx)
+dg::Grid1d createStaggeredGrid( dg::file::WrappedJsonValue js, dg::bc bcx)
 {
-    dg::Grid1d g1d = createGrid(grid, bcx);
+    dg::Grid1d g1d = createGrid(js, bcx);
+    dg::file::WrappedJsonValue grid = js["grid"];
+    unsigned n=1;
+    std::string scheme = js["advection"].get("type", "staggered").asString();
+    if (scheme.find("dg") != std::string::npos) {
+        n = grid.get("n", 3).asUInt();
+    }
     unsigned Nx = grid.get( "Nx", 48).asUInt();
     double x0 = g1d.x0() + g1d.h()/2.;
     double x1 = g1d.x1() + g1d.h()/2.;
-    return dg::Grid1d( x0, x1, 1, Nx, bcx);
+    return dg::Grid1d( x0, x1, n, Nx, bcx);
 }
 
 void assign_ghost_cells( const dg::HVec& y, dg::HVec& yg, dg::bc bcx)

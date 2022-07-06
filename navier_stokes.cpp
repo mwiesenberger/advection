@@ -14,7 +14,7 @@ namespace equations
 struct NavierStokesExplicit
 {
     friend class NavierStokesImplicit;
-    NavierStokesExplicit( dg::Grid1d g, dg::Grid1d vel_g, Json::Value js) :
+    NavierStokesExplicit( dg::Grid1d g, dg::Grid1d vel_g, dg::file::WrappedJsonValue js) :
         m_velocity( g.size(), 0.), m_density(m_velocity), m_g(g), m_vel_g(vel_g)
     {
         dg::HVec temp( g.size()+4, 0.);
@@ -562,7 +562,7 @@ struct NavierStokesImplicit
 
 struct NavierStokesImplicitSolver
 {
-    NavierStokesImplicitSolver( dg::Grid1d g, Json::Value js, NavierStokesImplicit& im) :
+    NavierStokesImplicitSolver( dg::Grid1d g, dg::file::WrappedJsonValue js, NavierStokesImplicit& im) :
         m_tmp( {dg::HVec(g.size(), 0.0), dg::HVec ( g.size(), 0.)}), m_im(im){}
     // solve (y - alpha I(t,y) = rhs
     void operator()( double alpha, double t, Vector& y, const Vector& rhs)
@@ -586,7 +586,7 @@ struct Variables{
     const dg::Grid1d& grid;
     const Vector& y0;
     const double& time;
-    Json::Value& js;
+    dg::file::WrappedJsonValue& js;
     double duration;
     const unsigned* nfailed;
 };
@@ -814,23 +814,23 @@ std::vector<Record1d> diagnostics1d_list = {
 int main( int argc, char* argv[])
 {
     ////Parameter initialisation ////////////////////////////////////////////
-    Json::Value js;
+    dg::file::WrappedJsonValue js( dg::file::error::is_warning);
     if( argc == 1)
-        dg::file::file2Json( "input/default.json", js, dg::file::comments::are_discarded);
+        dg::file::file2Json( "input/default.json", js.asJson(), dg::file::comments::are_discarded);
     else
-        dg::file::file2Json( argv[1], js);
-    std::cout << js <<std::endl;
+        dg::file::file2Json( argv[1], js.asJson());
+    std::cout << js.asJson() <<std::endl;
 
     /////////////////////////////////////////////////////////////////
-    dg::Grid1d grid = equations::createGrid( js["grid"], dg::PER);
+    dg::Grid1d grid = equations::createGrid( js, dg::PER);
     dg::HVec w1d( dg::create::weights(grid));
     /////////////////////////////////////////////////////////////////
     std::string init = js["init"].get("type", "step").asString();
     std::string scheme = js["advection"].get("type", "staggered").asString();
-    dg::Grid1d vel_grid = equations::createGrid( js["grid"], dg::PER);
+    dg::Grid1d vel_grid = equations::createGrid( js, dg::PER);
     if ( "staggered" == scheme || "velocity-staggered" == scheme ||
             "staggered-direct" == scheme || "log-staggered" == scheme)
-        vel_grid = equations::createStaggeredGrid( js["grid"], dg::PER);
+        vel_grid = equations::createStaggeredGrid( js, dg::PER);
     Vector y0 = {dg::evaluate( dg::zero, grid), dg::evaluate( dg::zero, grid)};
     if( "step" == init)
     {
@@ -919,7 +919,7 @@ int main( int argc, char* argv[])
     }
 
     // Set up netcdf
-    std::string inputfile = js.toStyledString(); //save input without comments, which is important if netcdf file is later read by another parser
+    std::string inputfile = js.asJson().toStyledString(); //save input without comments, which is important if netcdf file is later read by another parser
     std::string outputfile;
     if( argc == 1 || argc == 2)
         outputfile = "navier-stokes.nc";

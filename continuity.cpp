@@ -8,15 +8,63 @@
 namespace equations
 {
 
+struct Filter
+{
+    Filter( dg::Grid1d g, dg::file::WrappedJsonValue js) : m_tmp( g.size())
+    {
+        m_scheme = js["advection"].get("type", "upwind").asString();
+        if( m_scheme == "dg-upwind")
+        {
+            m_alpha  = js["advection"].get("alpha", 10).asDouble()*g.h()*g.h();
+            m_stencil = dg::create::limiter_stencil( g, g.bcx());
+        }
+        else if( m_scheme == "dg-upwind-swm")
+        {
+            m_stencil = dg::create::window_stencil(3, g, g.bcx());
+            m_alpha  = js["advection"].get("alpha", 10).asDouble()*g.h()*g.h();
+            m_iter = js["advection"].get("iter", 4).asUInt();
+        }
+    }
+    void operator()( dg::HVec& y)
+    {
+        if( m_scheme == "dg-upwind")
+        {
+            dg::blas2::stencil( dg::CSRSlopeLimiter<double>(m_alpha), m_stencil, y, m_tmp);
+            m_tmp.swap(y);
+        }
+        else if( m_scheme == "dg-upwind-swm")
+        {
+            double alpha = m_alpha;
+            for( unsigned i=0; i<m_iter; i++)
+            {
+                dg::blas2::stencil( dg::CSRSWMFilter<double>(alpha), m_stencil, y, m_tmp);
+                using std::swap;
+                swap( m_tmp, y);
+                alpha*=0.8;
+            }
+        }
+    }
+    private:
+    dg::IHMatrix m_stencil;
+    dg::HVec m_tmp;
+    std::string m_scheme;
+    unsigned m_iter;
+    double m_alpha;
+
+};
+
 struct Continuity
 {
-    Continuity( dg::Grid1d g, Json::Value js) :
-        m_yg( g.size()+4, 0.), m_g(g)
+    Continuity( dg::Grid1d g, dg::file::WrappedJsonValue js) :
+        m_yg( g.size()+4, 0.), m_tmp0(g.size()), m_tmp1(g.size()), m_g(g)
     {
         m_scheme = js["advection"].get("type", "upwind").asString();
         m_vel = js["physical"].get("velocity", 1.0).asDouble();
         m_nu = js["physical"].get( "nu", 0.).asDouble();
         std::cout << "Compute scheme "<<m_scheme<<"\n";
+        m_forward = dg::create::dx( g, g.bcx(), dg::forward);
+        m_backward = dg::create::dx( g, g.bcx(), dg::backward);
+        m_ell = { g};
     }
 
     void operator() ( double t, const dg::HVec & y, dg::HVec& yp)
@@ -26,15 +74,16 @@ struct Continuity
         double hx = m_g.h();
         assign_ghost_cells( y, m_yg, m_g.bcx());
         // ghost cells are shifted by 2
+        dg::blas1::copy( 0., yp);
         if ( m_scheme == "upwind")
         {
             for( unsigned i=0; i<Nx; i++)
             {
                 unsigned k=i+2;
                 if( m_vel > 0.)
-                    yp[i] =  -m_vel*( m_yg[k] - m_yg[k-1])/ hx;
+                    yp[i] -= m_vel*( m_yg[k] - m_yg[k-1])/ hx;
                 else
-                    yp[i] =  -m_vel*( m_yg[k+1] - m_yg[k])/ hx;
+                    yp[i] -= m_vel*( m_yg[k+1] - m_yg[k])/ hx;
             }
         }
         else if ( m_scheme == "upwind2")
@@ -43,9 +92,9 @@ struct Continuity
             {
                 unsigned k=i+2;
                 if( m_vel > 0.)
-                    yp[i] =  -m_vel*( 3*m_yg[k] - 4*m_yg[k-1] + m_yg[k-2])/2./hx;
+                    yp[i] -= m_vel*( 3*m_yg[k] - 4*m_yg[k-1] + m_yg[k-2])/2./hx;
                 else
-                    yp[i] =  -m_vel*( -m_yg[k+2] + 4*m_yg[k+1] - 3*m_yg[k])/2./hx;
+                    yp[i] -= m_vel*( -m_yg[k+2] + 4*m_yg[k+1] - 3*m_yg[k])/2./hx;
             }
         }
         else if ( m_scheme == "centered")
@@ -53,20 +102,34 @@ struct Continuity
             for( unsigned i=0; i<Nx; i++)
             {
                 unsigned k=i+2;
-                yp[i] =  -m_vel*( m_yg[k+1]-m_yg[k-1])/2./hx;
+                yp[i] -= m_vel*( m_yg[k+1]-m_yg[k-1])/2./hx;
             }
         }
-        for( unsigned i=0; i<Nx; i++)
+        else if (m_scheme.find("dg-upwind") != std::string::npos)
         {
-            unsigned k=i+2;
-            yp[i] +=  m_nu*( m_yg[k+1]-2.*m_yg[k]+m_yg[k-1])/hx/hx;
+            dg::blas2::symv( m_forward, y, m_tmp0);
+            dg::blas2::symv( m_backward, y, m_tmp1);
+            dg::blas1::evaluate( yp, dg::minus_equals(), dg::Upwind(), m_vel,
+                    m_tmp1, m_tmp0);
+        }
+        if (m_scheme.find("dg-upwind") != std::string::npos)
+            dg::blas2::symv( -m_nu, m_ell, y, 1., yp);
+        else
+        {
+            for( unsigned i=0; i<Nx; i++)
+            {
+                unsigned k=i+2;
+                yp[i] +=  m_nu*( m_yg[k+1]-2.*m_yg[k]+m_yg[k-1])/hx/hx;
+            }
         }
     }
     unsigned called() const { return m_called;}
     private:
     unsigned m_called = 0;
     std::string m_scheme;
-    dg::HVec m_yg;
+    dg::HVec m_yg, m_tmp0, m_tmp1;
+    dg::HMatrix m_forward, m_backward;
+    dg::Elliptic1d<dg::Grid1d, dg::HMatrix, dg::HVec> m_ell;
     dg::Grid1d m_g;
     double m_vel, m_nu;
 
@@ -77,7 +140,7 @@ struct Variables{
     const dg::Grid1d& grid;
     const dg::HVec& y0;
     const double& time;
-    Json::Value& js;
+    dg::file::WrappedJsonValue& js;
     double duration;
     const unsigned* nfailed;
 };
@@ -144,16 +207,16 @@ std::vector<Record1d> diagnostics1d_list = {
 int main( int argc, char* argv[])
 {
     ////Parameter initialisation ////////////////////////////////////////////
-    Json::Value js;
+    dg::file::WrappedJsonValue js( dg::file::error::is_warning);
     if( argc == 1)
-        dg::file::file2Json( "input/default.json", js, dg::file::comments::are_discarded);
+        dg::file::file2Json( "input/default.json", js.asJson(), dg::file::comments::are_discarded);
     else
-        dg::file::file2Json( argv[1], js);
-    std::cout << js <<std::endl;
+        dg::file::file2Json( argv[1], js.asJson());
+    std::cout << js.asJson() <<std::endl;
 
     /////////////////////////////////////////////////////////////////
     dg::bc bcx = dg::str2bc ( js["grid"].get("bc", "NEU").asString());
-    dg::Grid1d grid = equations::createGrid( js["grid"], bcx);
+    dg::Grid1d grid = equations::createGrid( js, bcx);
     dg::HVec w1d( dg::create::weights(grid));
     /////////////////////////////////////////////////////////////////
     std::string init = js["init"].get("type", "step").asString();
@@ -180,14 +243,15 @@ int main( int argc, char* argv[])
     double tend = js["output"].get( "tend", 1.0).asDouble();
     unsigned maxout = js["output"].get("maxout", 10).asUInt();
     double deltaT = tend/(double)maxout;
-    dg::Adaptive<dg::ERKStep<dg::HVec>> adaptive( tableau,y0);
+    dg::Adaptive<dg::FilteredERKStep<dg::HVec>> adaptive( tableau,y0);
     double time = 0.;
     equations::Continuity rhs( grid,js);
+    equations::Filter filter( grid,js);
     dg::AdaptiveTimeloop<dg::HVec> timeloop( adaptive,
-            rhs, dg::pid_control, dg::l2norm, rtol, atol);
+            std::tie(rhs,filter), dg::pid_control, dg::l2norm, rtol, atol);
 
     // Set up netcdf
-    std::string inputfile = js.toStyledString(); //save input without comments, which is important if netcdf file is later read by another parser
+    std::string inputfile = js.asJson().toStyledString(); //save input without comments, which is important if netcdf file is later read by another parser
     std::string outputfile;
     if( argc == 1 || argc == 2)
         outputfile = "equations.nc";
