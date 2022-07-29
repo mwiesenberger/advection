@@ -1,4 +1,12 @@
 advection
+ThreeDimensional
+pics
 _build
 __pycache__
 .ipynb_checkpoints
+*.nc
+*.json
+*.mp4
+continuity
+navier_stokes
+plasma
