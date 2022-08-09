@@ -7,8 +7,8 @@
 # export FELTOR_PATH="path/to/feltor"
 
 echo "Compiling the source code ... "
-make -C $FELTOR_PATH/src/lamb_dipole shu_b
+make -C $FELTOR_PATH/src/lamb_dipole shu
 echo "... Done"
 
-echo "$FELTOR_PATH/src/lamb_dipole/shu_b $1 $2"
-$FELTOR_PATH/src/lamb_dipole/shu_b $1 $2
+echo "$FELTOR_PATH/src/lamb_dipole/shu $1 $2"
+$FELTOR_PATH/src/lamb_dipole/shu $1 $2
