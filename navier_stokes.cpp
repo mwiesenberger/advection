@@ -130,6 +130,7 @@ struct NavierStokesExplicit
                 double nST = (nn[k] + nn[k+1])/2.;
                 uST[k] = unST[k]/nST;
             }
+
             for( unsigned k=0; k<Nx+3; k++)
                 dn[k] = nn[k+1]-nn[k];
             for( unsigned k=1; k<Nx+4; k++)
@@ -851,8 +852,15 @@ int main( int argc, char* argv[])
         y0[0] = dg::evaluate( [=](double x){ return x < x_a ? n_l : n_r;}, grid);
         y0[1] = dg::evaluate( [=](double x){ return x < x_a ? u_l : u_r;}, vel_grid);
         if( scheme == "staggered")
-            y0[1] = dg::evaluate( [=](double x){ return x < x_a ? n_l*u_l :
-                    n_r*u_r;}, vel_grid);
+        {
+            //y0[1] = dg::evaluate( [=](double x){ return x < x_a ? n_l*u_l :
+            //        n_r*u_r;}, vel_grid);
+            //This one is what Herbin does:
+            for( unsigned i=0; i<grid.N()-1; i++)
+                y0[1][i] = (y0[0][i]+y0[0][i+1])*0.5*y0[1][i];
+            y0[1][grid.N()-1] = y0[0][grid.N()-1]*y0[1][grid.N()-1];
+        }
+
     }
     else if( "wave" == init)
     {
@@ -890,8 +898,6 @@ int main( int argc, char* argv[])
     std::string timestepper = js["timestepper"].get( "type", "ERK").asString();
     std::string tableau= js["timestepper"].get("tableau",
             "ARK-4-2-3").asString();
-    double rtol= js["timestepper"].get("rtol", 1e-4).asDouble();
-    double atol= js["timestepper"].get("atol", 1e-6).asDouble();
     double tend = js["output"].get( "tend", 1.0).asDouble();
     unsigned maxout = js["output"].get("maxout", 10).asUInt();
     double deltaT = tend/(double)maxout;
@@ -900,10 +906,13 @@ int main( int argc, char* argv[])
     dg::Adaptive<dg::ERKStep<Vector >> erk_adaptive;
     auto odeint = std::unique_ptr<dg::aTimeloop<Vector>>();
     double time = 0.;
-    const unsigned* nfailed = nullptr;
+    const unsigned failed = 0;
+    const unsigned* nfailed = &failed;
     if( timestepper == "ARK")
     {
         ark_adaptive = { tableau, y0};
+        double rtol= js["timestepper"].get("rtol", 1e-4).asDouble();
+        double atol= js["timestepper"].get("atol", 1e-6).asDouble();
         odeint = std::make_unique<dg::AdaptiveTimeloop<Vector>>(
                     ark_adaptive, std::tie( ex, im, solver), dg::pid_control,
                     dg::l2norm, rtol, atol);
@@ -912,10 +921,18 @@ int main( int argc, char* argv[])
     else if( timestepper == "ERK")
     {
         erk_adaptive = { tableau, y0};
+        double rtol= js["timestepper"].get("rtol", 1e-4).asDouble();
+        double atol= js["timestepper"].get("atol", 1e-6).asDouble();
         odeint = std::make_unique<dg::AdaptiveTimeloop<Vector>>(
                     erk_adaptive, ex, dg::pid_control,
                     dg::l2norm, rtol, atol);
         nfailed = &erk_adaptive.nfailed();
+    }
+    else if( timestepper == "RK")
+    {
+        double dt = js["timestepper"].get("dt", 0.1).asDouble();
+        odeint = std::make_unique<dg::SinglestepTimeloop<Vector>>(
+                    dg::RungeKutta<Vector>(tableau, y0), ex, dt);
     }
 
     // Set up netcdf
