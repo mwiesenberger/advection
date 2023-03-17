@@ -73,11 +73,13 @@ struct NavierStokesExplicit
                     yp[0][i] =  -uu[k]*( nn[k] - nn[k-1])/ hx;
                 else
                     yp[0][i] =  -uu[k]*( nn[k+1] - nn[k])/ hx;
-                yp[0][i] += -nn[k]*( uu[k+1]-uu[k-1])/2./hx;
+                yp[0][i] += -nn[k]*( uu[k+1]-uu[k-1])/2./hx
+                         + m_nu_n*( nn[k+1]-2.*nn[k]+nn[k-1])/hx/hx;
                 yp[1][i] =  -(q[k+1]-q[k])/hx -
                     m_alpha*(std::pow(nn[k+1], m_gamma)-std::pow(nn[k-1],
-                                m_gamma))/2./hx/nn[k]+
-                    m_nu_u/nn[k]*(uu[k+1]-2.*uu[k]+uu[k-1])/hx/hx;
+                                m_gamma))/2./hx/nn[k]
+                       + m_nu_u/nn[k]*(uu[k+1]-2.*uu[k]+uu[k-1])/hx/hx
+                       + m_nu_n / nn[k] * (uu[k+1]-uu[k-1])*(nn[k+1]-nn[k-1])/hx/hx/4;
             }
         }
         else if ( m_scheme == "upwind2")
@@ -93,12 +95,14 @@ struct NavierStokesExplicit
                     yp[0][i] =  -uu[k]*( 3*nn[k] - 4*nn[k-1] + nn[k-2])/2./hx;
                 else
                     yp[0][i] =  -uu[k]*( -nn[k+2] + 4*nn[k+1] - 3*nn[k])/2./hx;
-                yp[0][i] += -nn[k]*( uu[k+1]-uu[k-1])/2./hx;
+                yp[0][i] += -nn[k]*( uu[k+1]-uu[k-1])/2./hx
+                         + m_nu_n*( nn[k+1]-2.*nn[k]+nn[k-1])/hx/hx;
                 yp[1][i] =
                     -uu[k]*(uu[k+1]-uu[k-1])/2./hx -
                     m_alpha*(std::pow(nn[k+1], m_gamma)-std::pow(nn[k-1],
-                                m_gamma))/2./hx/nn[k]+
-                    m_nu_u/nn[k]*(uu[k+1] - 2.*uu[k]+uu[k-1])/hx/hx;
+                                m_gamma))/2./hx/nn[k]
+                   + m_nu_u/nn[k]*(uu[k+1] - 2.*uu[k]+uu[k-1])/hx/hx
+                   + m_nu_n / nn[k] * (uu[k+1]-uu[k-1])*(nn[k+1]-nn[k-1])/hx/hx/4;
             }
         }
         else if ( m_scheme == "centered")
@@ -111,12 +115,14 @@ struct NavierStokesExplicit
                 m_velocity[i] = y[1][i];
                 unsigned k=i+2;
                 yp[0][i] =  -uu[k]*( nn[k+1]-nn[k-1])/2./hx
-                            -nn[k]*( uu[k+1]-uu[k-1])/2./hx;
+                            -nn[k]*( uu[k+1]-uu[k-1])/2./hx
+                            +m_nu_n*( nn[k+1]-2.*nn[k]+nn[k-1])/hx/hx;
                 yp[1][i] =
                     -uu[k]*(uu[k+1]-uu[k-1])/2./hx -
                     m_alpha*(std::pow(nn[k+1], m_gamma)-std::pow(nn[k-1],
-                                m_gamma))/2./hx/nn[k]+
-                    m_nu_u/nn[k]*(uu[k+1] - 2.*uu[k]+uu[k-1])/hx/hx;
+                                m_gamma))/2./hx/nn[k]
+                    + m_nu_u/nn[k]*(uu[k+1] - 2.*uu[k]+uu[k-1])/hx/hx
+                    + m_nu_n / nn[k] * (uu[k+1]-uu[k-1])*(nn[k+1]-nn[k-1])/hx/hx/4;
             }
         }
         else if ( m_scheme == "staggered")
@@ -157,10 +163,12 @@ struct NavierStokesExplicit
                 unsigned k=i+2;
                 m_density[i] = y[0][i];
                 m_velocity[i] = 0.5*(unST[k]+unST[k-1])/nn[k];
-                yp[0][i] = -( qST[k] - qST[k-1])/hx;
+                yp[0][i] = -( qST[k] - qST[k-1])/hx
+                           + m_nu_n*( nn[k+1]-2.*nn[k]+nn[k-1])/hx/hx;
                 //
                 yp[1][i] = -(uh[k+1]*q[k+1]-uh[k]*q[k])/hx;
-                yp[1][i]+= m_nu_u*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
+                yp[1][i]+= m_nu_u*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx
+                          +m_nu_n*( dn[k+1]*uST[k+1] - dn[k-1]*uST[k-1])/hx/2.;
             }
             if( m_variant == "explicit" || m_variant == "slope-limiter-explicit")
             {
@@ -231,7 +239,8 @@ struct NavierStokesExplicit
                 m_velocity[i] = 0.5*(uST[k]+uST[k-1]);
                 // MW: factoring this out into two terms n d.v + v.d n makes
                 // it much worse
-                yp[0][i] = -( qST[k] - qST[k-1])/hx;
+                yp[0][i] = -( qST[k] - qST[k-1])/hx
+                           + m_nu_n*( nn[k+1]-2.*nn[k]+nn[k-1])/hx/hx;
                 // Does not really matter:
                 double nSTinv = 2./(nn[k] + nn[k+1]);
                 //double nSTinv = (1./nn[k] + 1./nn[k+1])/2.;
@@ -252,7 +261,9 @@ struct NavierStokesExplicit
                 // This is the most straightforward, works all-round but does
                 // not capture shock (but does capture Burger's shock)
                 //yp[1][i] = -(fh[k+1]-fh[k])/hx;
-                yp[1][i]+= m_nu_u*nSTinv*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
+                yp[1][i]+= m_nu_u*nSTinv*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx
+                    //- m_nu_n * uST[k]/nST[k]*( nST[k+1]-2.*nST[k]+nST[k-1])/hx/hx;
+                    + m_nu_n *nSTinv*(nn[k+1]-nn[k])/hx*(uST[k+1]-uST[k-1])/2./hx;
             }
             if( m_variant == "explicit" || m_variant == "slope-limiter-explicit")
             {
@@ -316,13 +327,15 @@ struct NavierStokesExplicit
                 unsigned k=i+2;
                 m_density[i] = y[0][i];
                 m_velocity[i] = y[1][i];
-                yp[0][i] = -( qST[k] - qST[k-1])/hx;
+                yp[0][i] = -( qST[k] - qST[k-1])/hx
+                           +m_nu_n*( nn[k+1]-2.*nn[k]+nn[k-1])/hx/hx;
 
                 yp[1][i] = -(uh[k] - uh[k-1])/2./hx
                 //yp[1][i] = -uu[k]*(uu[k+1] - uu[k-1])/2./hx
                     - m_alpha*(std::pow(nn[k+1], m_gamma)-std::pow(nn[k-1],
                                 m_gamma))/2./hx/nn[k]
-                    + m_nu_u/nn[k]*(uu[k+1]-2.*uu[k]+uu[k-1])/hx/hx;
+                    + m_nu_u/nn[k]*(uu[k+1]-2.*uu[k]+uu[k-1])/hx/hx
+                    + m_nu_n / nn[k] * (uu[k+1]-uu[k-1])*(nn[k+1]-nn[k-1])/hx/hx/4;
             }
         }
         else if ( m_scheme == "staggered-direct")
@@ -330,9 +343,14 @@ struct NavierStokesExplicit
             //This is the Stegmeir variant
             // y[0] -> ln n
             // y[1] -> u^st
-            dg::HVec qST(m_yg[1]), dlnST(qST), uu(qST), q(qST);
+            dg::HVec qST(m_yg[1]), dlnST(qST), uu(qST), q(qST), nn(m_yg[0]), nST(m_yg[0]);
             const dg::HVec & uST = m_yg[1];
             const dg::HVec & lnn = m_yg[0];
+            for( unsigned k=0; k<Nx+3; k++)
+            {
+                nn[k] = exp(lnn[k]);
+                nST[k] = 0.5*(nn[k+1]+nn[k]);
+            }
             for ( unsigned k=1; k<Nx+3; k++)
                 uu[k] = 0.5*(uST[k]+uST[k-1]); // this is the local shock speed
             for( unsigned k=0; k<Nx+3; k++)
@@ -346,10 +364,12 @@ struct NavierStokesExplicit
                 unsigned k=i+2;
                 m_density[i] = exp(y[0][i]);
                 m_velocity[i] = uu[k];
-                yp[0][i] = -( uST[k]-uST[k-1] )/hx  - q[k]/hx ;
+                yp[0][i] = -( uST[k]-uST[k-1] )/hx  - q[k]/hx
+                            +m_nu_n/nn[k]*( nn[k+1]-2.*nn[k]+nn[k-1])/hx/hx;
                 yp[1][i] = -uST[k]*(uu[k+1]-uu[k])/hx;
-                double nSTinv = 2./(exp(lnn[k]) + exp(lnn[k+1]));
-                yp[1][i]+= m_nu_u*nSTinv*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
+                // double nSTinv = 2./(exp(lnn[k]) + exp(lnn[k+1]));
+                // implement diffusion like they suggest it (i.e. wrong)
+                yp[1][i]+= m_nu_u*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
             }
             for( unsigned i=0; i<Nx; i++)
             {
@@ -366,12 +386,13 @@ struct NavierStokesExplicit
         }
         else if ( m_scheme == "log-staggered")
         {
-            dg::HVec qST(m_yg[1]), uu(qST), fh(qST), u2(qST), dlnn(u2), du(u2), du2(u2), uh(u2), dn(u2), nn(u2);
+            dg::HVec qST(m_yg[1]), uu(qST), fh(qST), u2(qST), dlnn(u2), du(u2), du2(u2), uh(u2), dn(u2), nn(u2), nST(u2);
             const dg::HVec & lnn = m_yg[0];
             const dg::HVec & uST = m_yg[1];
             for ( unsigned k=1; k<Nx+3; k++)
             {
                 nn[k] = exp( lnn[k]);
+                nST[k] = 0.5*(nn[k+1]+nn[k]);
                 uu[k] = 0.5*(uST[k]+uST[k-1]); // this is the local shock speed
                 u2[k] = uST[k]*uST[k]/2.;
             }
@@ -405,11 +426,13 @@ struct NavierStokesExplicit
                 unsigned k=i+2;
                 m_density[i] = nn[k];
                 m_velocity[i] = uu[k];
-                yp[0][i] = -uu[k]*( qST[k] - qST[k-1])/hx - du[k]/hx;
+                yp[0][i] = -uu[k]*( qST[k] - qST[k-1])/hx - du[k]/hx
+                            +m_nu_n/nn[k]*( nn[k+1]-2.*nn[k]+nn[k-1])/hx/hx;
                 //yp[0][i] = -( qST[k] - qST[k-1])/nn[k]/hx;
                 double nSTinv = 2./(nn[k] + nn[k+1]);
                 yp[1][i] = -(uu[k+1]*uh[k+1]-uu[k]*uh[k])/2./hx;
-                yp[1][i]+= m_nu_u*nSTinv*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx;
+                yp[1][i]+= m_nu_u*nSTinv*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx
+                         + m_nu_n / nST[k]*(nn[k+1]-nn[k])/hx*(uST[k+1]-uST[k-1])/2./hx;
             }
             for( unsigned i=0; i<Nx; i++)
             {
@@ -423,15 +446,6 @@ struct NavierStokesExplicit
                             - pow(exp(lnn[k]), m_gamma))*nSTinv/hx;
                 }
             }
-        }
-        for( unsigned i=0; i<Nx; i++)
-        {
-            unsigned k=i+2;
-            if( m_scheme == "staggered-direct" || m_scheme == "log-staggered")
-                yp[0][i] +=  m_nu_n*( exp(m_yg[0][k+1]) - 2.*exp(m_yg[0][k]) +
-                        exp(m_yg[0][k-1]))/exp(m_yg[0][k])/hx/hx;
-            else
-                yp[0][i] +=  m_nu_n*( m_yg[0][k+1]-2.*m_yg[0][k]+m_yg[0][k-1])/hx/hx;
         }
 
         if( "mms" == m_init)
