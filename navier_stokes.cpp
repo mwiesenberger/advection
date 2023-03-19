@@ -214,13 +214,13 @@ struct NavierStokesExplicit
             }
             for( unsigned k=1; k<Nx+4; k++)
                 du2[k] = u2[k]-u2[k-1];
-            for ( unsigned k=2; k<Nx+3; k++)
-            {
-                fh[k] = upwind( uu[k], u2[k-1], u2[k]);
-                if( m_variant == "slope-limiter-explicit" || m_variant ==
-                        "slope-limiter")
-                    fh[k] += limiter(uu[k], du2[k-1], du2[k], du2[k+1], 0.5, 0.5);
-            }
+            //for ( unsigned k=2; k<Nx+3; k++)
+            //{
+            //    fh[k] = upwind( uu[k], u2[k-1], u2[k]);
+            //    if( m_variant == "slope-limiter-explicit" || m_variant ==
+            //            "slope-limiter")
+            //        fh[k] += limiter(uu[k], du2[k-1], du2[k], du2[k+1], 0.5, 0.5);
+            //}
             for ( unsigned k=1; k<Nx+3; k++)
                 q [k] = 0.5*(qST[k]+qST[k-1]);
             for( unsigned k=1; k<Nx+4; k++)
@@ -261,9 +261,12 @@ struct NavierStokesExplicit
                 // This is the most straightforward, works all-round but does
                 // not capture shock (but does capture Burger's shock)
                 //yp[1][i] = -(fh[k+1]-fh[k])/hx;
+                //
+                //double current = -m_nu_u*nSTinv*(nn[k+1]-nn[k])/hx;
                 yp[1][i]+= m_nu_u*nSTinv*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx
                     //- m_nu_n * uST[k]/nST[k]*( nST[k+1]-2.*nST[k]+nST[k-1])/hx/hx;
                     + m_nu_n *nSTinv*(nn[k+1]-nn[k])/hx*(uST[k+1]-uST[k-1])/2./hx;
+                    //- current * upwind( current, uST[k] - uST[k-1], uST[k+1]-uST[k])/hx;
             }
             if( m_variant == "explicit" || m_variant == "slope-limiter-explicit")
             {
