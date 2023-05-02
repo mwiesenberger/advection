@@ -1,4 +1,4 @@
-device=omp
+device=cpu
 FELTOR_PATH=../feltor
 
 #configure machine
