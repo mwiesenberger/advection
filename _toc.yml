@@ -1,4 +1,6 @@
-- file: comparison
+format: jb-article
+root: comparison
+sections:
 - file: convergence
 - file: OneDimensional
 - file: References
