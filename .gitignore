@@ -7,6 +7,7 @@ __pycache__
 *.nc
 *.json
 *.mp4
+*.png
 continuity
 navier_stokes
 plasma
