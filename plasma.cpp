@@ -226,7 +226,7 @@ struct PlasmaExplicit
                     uST[k] = unST[k]/nST;
                     dn[k] = nn[k+1]-nn[k];
                 }
-                for( unsigned k=1; k<Nx+2; k++)
+                for( unsigned k=1; k<Nx+3; k++)
                 {
                     qST[k] = upwind( uST[k], nn[k], nn[k+1]);
                     if( m_variant == "slope-limiter-explicit" || m_variant ==
@@ -234,11 +234,11 @@ struct PlasmaExplicit
                         qST[k] += limiter(uST[k], dn[k-1], dn[k], dn[k+1], 0.5, 0.5);
                     qST[k]*= uST[k]; // k + 1/2
                 }
-                for ( unsigned k=1; k<Nx+3; k++)
+                for ( unsigned k=1; k<Nx+4; k++)
                     q [k] = 0.5*(qST[k]+qST[k-1]);
                 for( unsigned k=1; k<Nx+4; k++)
                     du[k] = uST[k] - uST[k-1];
-                for ( unsigned k=2; k<Nx+3; k++)
+                for ( unsigned k=1; k<Nx+3; k++)
                 {
                     uh[k] = upwind( q[k], uST[k-1], uST[k]);
                     if( m_variant == "slope-limiter-explicit" || m_variant ==

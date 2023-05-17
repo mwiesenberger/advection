@@ -59,7 +59,7 @@ struct NavierStokesExplicit
             dg::HVec q(m_yg[0]);
             const dg::HVec & nn = m_yg[0];
             const dg::HVec & uu = m_yg[1];
-            for ( unsigned k=1; k<Nx+3; k++)
+            for ( unsigned k=1; k<Nx+4; k++)
             {
                 q[k] = 0.5*(uu[k]+uu[k-1]) >= 0 ? uu[k-1]*uu[k-1] : uu[k]*uu[k];
                 q[k] /= 2.;
@@ -141,7 +141,7 @@ struct NavierStokesExplicit
                 dn[k] = nn[k+1]-nn[k];
             for( unsigned k=1; k<Nx+4; k++)
                 du[k] = uST[k] - uST[k-1];
-            for( unsigned k=1; k<Nx+2; k++)
+            for( unsigned k=1; k<Nx+3; k++)
             {
                 qST[k] = upwind( uST[k], nn[k], nn[k+1]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
@@ -149,9 +149,9 @@ struct NavierStokesExplicit
                     qST[k] += limiter(uST[k], dn[k-1], dn[k], dn[k+1], 0.5, 0.5);
                 qST[k]*= uST[k]; // k + 1/2
             }
-            for ( unsigned k=1; k<Nx+3; k++)
+            for ( unsigned k=1; k<Nx+4; k++)
                 q [k] = 0.5*(qST[k]+qST[k-1]);
-            for ( unsigned k=2; k<Nx+3; k++)
+            for ( unsigned k=1; k<Nx+3; k++)
             {
                 uh[k] = upwind( q[k], uST[k-1], uST[k]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
@@ -161,7 +161,7 @@ struct NavierStokesExplicit
             for( unsigned i=0; i<Nx; i++)
             {
                 unsigned k=i+2;
-                m_density[i] = y[0][i];
+                m_density[i] = nn[k];
                 m_velocity[i] = 0.5*(unST[k]+unST[k-1])/nn[k];
                 yp[0][i] = -( qST[k] - qST[k-1])/hx
                            + m_nu_n*( nn[k+1]-2.*nn[k]+nn[k-1])/hx/hx;
@@ -197,14 +197,14 @@ struct NavierStokesExplicit
                 nST[k] = 0.5*(nn[k+1]+nn[k]);
                 dn[k] = nn[k+1]-nn[k];
             }
-            for ( unsigned k=1; k<Nx+3; k++)
+            for ( unsigned k=1; k<Nx+4; k++)
             {
                 // This one works slightly better (needs less timesteps)
                 uu[k] = 0.5*(uST[k]*nST[k]+uST[k-1]*nST[k-1])/nn[k];
                 //uu[k] = 0.5*(uST[k]+uST[k-1]);
                 u2[k] = uST[k]*uST[k]/2.;
             }
-            for( unsigned k=1; k<Nx+2; k++)
+            for( unsigned k=1; k<Nx+3; k++)
             {
                 qST[k] = upwind( uST[k], nn[k], nn[k+1]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
@@ -221,11 +221,11 @@ struct NavierStokesExplicit
             //            "slope-limiter")
             //        fh[k] += limiter(uu[k], du2[k-1], du2[k], du2[k+1], 0.5, 0.5);
             //}
-            for ( unsigned k=1; k<Nx+3; k++)
+            for ( unsigned k=1; k<Nx+4; k++)
                 q [k] = 0.5*(qST[k]+qST[k-1]);
             for( unsigned k=1; k<Nx+4; k++)
                 du[k] = uST[k] - uST[k-1];
-            for ( unsigned k=2; k<Nx+3; k++)
+            for ( unsigned k=1; k<Nx+3; k++)
             {
                 uh[k] = upwind( uu[k], uST[k-1], uST[k]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
@@ -235,7 +235,7 @@ struct NavierStokesExplicit
             for( unsigned i=0; i<Nx; i++)
             {
                 unsigned k=i+2;
-                m_density[i] = y[0][i];
+                m_density[i] = nn[k];
                 m_velocity[i] = 0.5*(uST[k]+uST[k-1]);
                 // MW: factoring this out into two terms n d.v + v.d n makes
                 // it much worse
@@ -306,7 +306,7 @@ struct NavierStokesExplicit
             }
             for( unsigned k=0; k<Nx+3; k++)
                 dn[k] = nn[k+1]-nn[k];
-            for( unsigned k=1; k<Nx+2; k++)
+            for( unsigned k=1; k<Nx+3; k++)
             {
                 qST[k] = upwind( uST[k], nn[k], nn[k+1]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
@@ -316,7 +316,7 @@ struct NavierStokesExplicit
             }
             for( unsigned k=0; k<Nx+3; k++)
                 du[k] = uu[k+1] - uu[k];
-            for ( unsigned k=1; k<Nx+2; k++)
+            for ( unsigned k=1; k<Nx+3; k++)
             {
                 uh[k] = upwind( uST[k], uu[k], uu[k+1]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
@@ -354,18 +354,18 @@ struct NavierStokesExplicit
                 nn[k] = exp(lnn[k]);
                 nST[k] = 0.5*(nn[k+1]+nn[k]);
             }
-            for ( unsigned k=1; k<Nx+3; k++)
+            for ( unsigned k=1; k<Nx+4; k++)
                 uu[k] = 0.5*(uST[k]+uST[k-1]); // this is the local shock speed
             for( unsigned k=0; k<Nx+3; k++)
                 dlnST[k] = lnn[k+1]-lnn[k];
-            for( unsigned k=1; k<Nx+2; k++)
+            for( unsigned k=0; k<Nx+4; k++)
                 qST[k] = uST[k]*dlnST[k];
-            for ( unsigned k=1; k<Nx+3; k++)
+            for ( unsigned k=1; k<Nx+4; k++)
                 q [k] = 0.5*(qST[k]+qST[k-1]);
             for( unsigned i=0; i<Nx; i++)
             {
                 unsigned k=i+2;
-                m_density[i] = exp(y[0][i]);
+                m_density[i] = exp(lnn[k]);
                 m_velocity[i] = uu[k];
                 yp[0][i] = -( uST[k]-uST[k-1] )/hx  - q[k]/hx
                             +m_nu_n/nn[k]*( nn[k+1]-2.*nn[k]+nn[k-1])/hx/hx;
@@ -392,17 +392,19 @@ struct NavierStokesExplicit
             dg::HVec qST(m_yg[1]), uu(qST), fh(qST), u2(qST), dlnn(u2), du(u2), du2(u2), uh(u2), dn(u2), nn(u2), nST(u2);
             const dg::HVec & lnn = m_yg[0];
             const dg::HVec & uST = m_yg[1];
-            for ( unsigned k=1; k<Nx+3; k++)
+            for ( unsigned k=0; k<Nx+4; k++)
             {
                 nn[k] = exp( lnn[k]);
-                nST[k] = 0.5*(nn[k+1]+nn[k]);
-                uu[k] = 0.5*(uST[k]+uST[k-1]); // this is the local shock speed
                 u2[k] = uST[k]*uST[k]/2.;
             }
+            for ( unsigned k=0; k<Nx+3; k++)
+                nST[k] = 0.5*(nn[k+1]+nn[k]);
+            for ( unsigned k=1; k<Nx+4; k++)
+                uu[k] = 0.5*(uST[k]+uST[k-1]); // this is the local shock speed
             for( unsigned k=0; k<Nx+3; k++)
                 dlnn[k] = lnn[k+1]-lnn[k];
                 //dn[k] = nn[k+1]-nn[k];
-            for( unsigned k=1; k<Nx+2; k++)
+            for( unsigned k=1; k<Nx+3; k++)
             {
                 qST[k] = upwind( uST[k], lnn[k], lnn[k+1]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
@@ -417,7 +419,7 @@ struct NavierStokesExplicit
             }
             for( unsigned k=1; k<Nx+4; k++)
                 du[k] = uST[k] - uST[k-1];
-            for ( unsigned k=2; k<Nx+3; k++)
+            for ( unsigned k=1; k<Nx+3; k++)
             {
                 uh[k] = upwind( uu[k], uST[k-1], uST[k]);
                 if( m_variant == "slope-limiter-explicit" || m_variant ==
