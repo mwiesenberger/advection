@@ -1,6 +1,6 @@
 format: jb-article
-root: comparison
+root: shu_comparison
 sections:
-- file: convergence
-- file: OneDimensional
-- file: References
+- file: shu_convergence
+- file: upwind
+- file: references
