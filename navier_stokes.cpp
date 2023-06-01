@@ -701,6 +701,12 @@ std::vector<Record> diagnostics_list = {
                             return h_r;}, v.grid);
                 }
             }
+            else if ( "riemann" == init)
+            {
+                double alpha = v.js["physical"].get("alpha",2).asDouble();
+                if( alpha == 0)
+                    result = dg::evaluate( dg::one, v.grid);
+            }
             else if ( "mms" == init)
             {
                 double gamma = v.js["physical"].get("gamma",2).asDouble();
