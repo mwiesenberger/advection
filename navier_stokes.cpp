@@ -1030,7 +1030,7 @@ int main( int argc, char* argv[])
     dg::HVec result = y0[0];
     equations::Variables var = {ex, grid, y0, time, js, 0., nfailed};
     {   // update internal velocity
-        std::array<dg::HVec , 2> tmp ( y0);
+        Vector tmp ( y0);
         ex( time, y0, tmp);
     }
     for( auto& record : equations::diagnostics_list)
