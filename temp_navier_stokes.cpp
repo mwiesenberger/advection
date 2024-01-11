@@ -21,6 +21,7 @@ struct NavierStokesExplicit
         m_yg.fill( temp);
         m_scheme = js["advection"].get("type", "upwind").asString();
         m_variant = js["advection"].get("variant", "original").asString();
+        m_gamma = js["physical"].get("gamma", 1.0).asDouble();
         m_bc_n = dg::str2bc(js["bc"].get("density", "PER").asString());
         m_bc_u = dg::str2bc(js["bc"].get("velocity", "PER").asString());
         m_bc_t = dg::str2bc(js["bc"].get("temperature", "PER").asString());
@@ -28,6 +29,18 @@ struct NavierStokesExplicit
         m_nu_t = js["physical"].get( "nu_t", 0.).asDouble();
         m_nu_u = js["physical"].get( "nu_u", 1.0).asDouble();
         std::cout << "Compute scheme "<<m_scheme<<" Variant " << m_variant<<"\n";
+        m_init = js["init"].get( "type", "step").asString();
+        if( "mms" == m_init)
+        {
+            m_n0 = js["init"].get("n_0", 1.0).asDouble();
+            m_u0 = js["init"].get("u_0", 1.0).asDouble();
+            m_t0 = js["init"].get("t_0", 1.0).asDouble();
+            m_A = js["init"].get("A", 1.0).asDouble();
+            m_B = js["init"].get("B", 1.0).asDouble();
+            m_C = js["init"].get("C", 1.0).asDouble();
+            m_k = js["init"].get("k", 1.0).asDouble();
+            m_v = js["init"].get("v", 1.0).asDouble();
+        }
     }
 
     const dg::HVec& density() const{return m_density;}
@@ -99,13 +112,14 @@ struct NavierStokesExplicit
                 //
                 yp[1][i] = -(uh[k+1]*q[k+1]-uh[k]*q[k])/hx;
                 yp[1][i]+= m_nu_u*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx
-                          +m_nu_n*( dn[k+1]*uST[k+1] - dn[k-1]*uST[k-1])/hx/2.;
+                          +m_nu_n*( dn[k+1]*uST[k+1] - dn[k-1]*uST[k-1])/hx/hx/2.;
 
                 double tt = nt[k]/ nn[k], tp = nt[k+1]/nn[k+1], tm = nt[k-1]/nn[k-1];
-                yp[2][i] = -( qTST[k] - qTST[k-1])/hx - 2*nt[k]*du[k]/hx
+                yp[2][i] = -( qTST[k] - qTST[k-1])/hx
+                           - (m_gamma-1.0)*nt[k]*du[k]/hx
                            + m_nu_n*( nt[k+1]-2.*nt[k]+nt[k-1])/hx/hx
-                           + 2*m_nu_u*du[k]*du[k]/hx/hx
-                           + m_nu_t*( tp-2.*tt+tm)/hx/hx;
+                           + (m_gamma-1.)*m_nu_u*du[k]*du[k]/hx/hx
+                           + (m_gamma-1.)*m_nu_t*( tp-2.*tt+tm)/hx/hx;
             }
             if( m_variant == "explicit" || m_variant == "slope-limiter-explicit")
             {
@@ -167,13 +181,14 @@ struct NavierStokesExplicit
                 double nSTinv = 2./(nn[k] + nn[k+1]);
                 yp[1][i] = -(uu[k+1]*uh[k+1]-uu[k]*uh[k])/2./hx;
                 yp[1][i]+= m_nu_u*nSTinv*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx
-                    + m_nu_n *nSTinv*(nn[k+1]-nn[k])/hx*(uST[k+1]-uST[k-1])/2./hx;
+                          +m_nu_n*nSTinv*(nn[k+1]-nn[k])/hx*(uST[k+1]-uST[k-1])/2./hx;
 
                 double tt = nt[k]/ nn[k], tp = nt[k+1]/nn[k+1], tm = nt[k-1]/nn[k-1];
-                yp[2][i] = -( qTST[k] - qTST[k-1])/hx - 2*nt[k]*du[k]/hx
+                yp[2][i] = -( qTST[k] - qTST[k-1])/hx
+                           - (m_gamma-1.0)*nt[k]*du[k]/hx
                            + m_nu_n*( nt[k+1]-2.*nt[k]+nt[k-1])/hx/hx
-                           + 2*m_nu_u*du[k]*du[k]/hx/hx
-                           + m_nu_t*( tp-2.*tt+tm)/hx/hx;
+                           + (m_gamma-1.)*m_nu_u*du[k]*du[k]/hx/hx
+                           + (m_gamma-1.)*m_nu_t*( tp-2.*tt+tm)/hx/hx;
             }
             if( m_variant == "explicit" || m_variant == "slope-limiter-explicit")
             {
@@ -184,6 +199,61 @@ struct NavierStokesExplicit
                     yp[1][i] += -nSTinv*(nt[k+1] - nt[k])/hx;
                 }
             }
+        }
+        if( "mms" == m_init)
+        {
+            //Add sources
+            dg::HVec tmpN( yp[0]), tmpNST( tmpN), tmpUST(tmpN), tmpT(tmpN);
+            tmpN = dg::evaluate( [=](double x){
+                return m_k*(m_A*m_k*m_nu_n*sin(m_k*(-(t*m_v) + x)) +
+                        cos(m_k*(-(t*m_v) + x))*(m_B*m_n0 + m_A*m_u0 - m_A*m_v +
+                        2*m_A*m_B*sin(m_k*(-(t*m_v) + x))));
+                }, m_g);
+            tmpNST = dg::evaluate( [=](double x){
+                return m_k*(m_A*m_k*m_nu_n*sin(m_k*(-(t*m_v) + x)) +
+                        cos(m_k*(-(t*m_v) + x))*(m_B*m_n0 + m_A*m_u0 - m_A*m_v +
+                        2*m_A*m_B*sin(m_k*(-(t*m_v) + x))));
+                }, m_vel_g);
+            tmpUST = dg::evaluate( [=](double x){
+                return (m_k*((m_A*(pow(m_B,2) + 4*m_t0) + 4*m_n0*(m_C + m_B*(m_u0 -
+                m_v)))*cos(m_k*(-(t*m_v) + x)) - m_B*(4*m_A*m_k*m_nu_n*pow(cos(m_k*(-(t*m_v) +
+                x)),2) + m_A*m_B*cos(3*m_k*(-(t*m_v) + x)) - 4*m_k*m_nu_u*sin(m_k*(-(t*m_v) +
+                x))) + 2*(2*m_A*m_C + pow(m_B,2)*m_n0 + m_A*m_B*(m_u0 - m_v))*sin(2*m_k*(-(t*m_v)
+                + x))))/(4.*(m_n0 + m_A*sin(m_k*(-(t*m_v) + x))));
+                }, m_vel_g);
+            tmpT = dg::evaluate( [=](double x){
+                return (m_k*(-m_k*(2*m_A*m_C*m_nu_n + pow(m_B,2)*(-1 +
+                m_gamma)*m_nu_u)*pow(cos(m_k*(-(t*m_v) + x)),2) + cos(m_k*(-(t*m_v) +
+                x))*(m_n0 + m_A*sin(m_k*(-(t*m_v) + x)))*(m_B*(-1 + m_gamma)*m_t0 + m_C*(m_u0 -
+                m_v) + m_B*m_C*m_gamma*sin(m_k*(-(t*m_v) + x))) + m_C*m_k*sin(m_k*(-(t*m_v) +
+                x))*(m_n0*m_nu_n + (-1 + m_gamma)*m_nu_t + m_A*m_nu_n*sin(m_k*(-(t*m_v) +
+                x)))))/(m_n0 + m_A*sin(m_k*(-(t*m_v) + x)));
+                }, m_g);
+
+            dg::HVec nn( yp[0]), nST(nn), uST(nn), tt(nn);
+            nn = dg::evaluate( [=](double x){
+                return m_n0 + m_A*sin( m_k*(-(t*m_v) + x));
+                }, m_g);
+            tt = dg::evaluate( [=](double x){
+                return m_t0 + m_C*sin( m_k*(-(t*m_v) + x));
+                }, m_g);
+            nST = dg::evaluate( [=](double x){
+                return m_n0 + m_A*sin( m_k*(-(t*m_v) + x));
+                }, m_vel_g);
+            uST = dg::evaluate( [=](double x){
+                return m_u0 + m_B*sin( m_k*(-(t*m_v) + x));
+                }, m_vel_g);
+            dg::blas1::axpby( 1., tmpN, 1., yp[0]);
+            for( unsigned i=0; i<Nx; i++)
+                yp[2][i] += tmpN[i]*tt[i] + nn[i]*tmpT[i];
+            if( m_scheme == "staggered")
+            {
+                for( unsigned i=0; i<Nx; i++)
+                    yp[1][i] += tmpUST[i]*nST[i] + uST[i]*tmpNST[i];
+            }
+            else
+                dg::blas1::axpby( 1., tmpUST, 1., yp[1]);
+
         }
     }
     unsigned called() const { return m_called;}
@@ -197,6 +267,8 @@ struct NavierStokesExplicit
     dg::bc m_bc_n, m_bc_u, m_bc_t;
     double m_nu_u, m_nu_n, m_nu_t;
     unsigned m_called = 0;
+    double m_gamma = 0;
+    double m_n0 = 0, m_u0 = 0, m_t0 = 0, m_A = 0, m_B = 0, m_C = 0, m_k = 0, m_v = 0;
 };
 
 struct NavierStokesImplicit
@@ -209,7 +281,6 @@ struct NavierStokesImplicit
         unsigned Nx = m_ex.m_g.N();
         double hx = m_ex.m_g.h();
         assign_ghost_cells( y[0], m_ex.m_yg[0], m_ex.m_bc_n);
-        assign_ghost_cells( y[1], m_ex.m_yg[1], m_ex.m_bc_u);
         assign_ghost_cells( y[2], m_ex.m_yg[2], m_ex.m_bc_t);
         // ghost cells are shifted by 2
         if( m_ex.m_scheme == "staggered")
@@ -245,14 +316,14 @@ struct NavierStokesImplicit
 struct NavierStokesImplicitSolver
 {
     NavierStokesImplicitSolver( dg::Grid1d g, dg::file::WrappedJsonValue js, NavierStokesImplicit& im) :
-        m_tmp( {dg::HVec(g.size(), 0.0), dg::HVec ( g.size(), 0.)}), m_im(im){}
+        m_tmp( {dg::HVec(g.size(), 0.0), dg::HVec ( g.size(), 0.), dg::HVec (g.size(), 0.)}), m_im(im){}
     // solve (y - alpha I(t,y) = rhs
     void operator()( double alpha, double t, Vector& y, const Vector& rhs)
     {
         dg::blas1::copy( rhs[0], y[0]);// I_n = 0
         dg::blas1::copy( rhs[2], y[2]);// I_t = 0
         m_im( t, y, m_tmp); //ignores y[1],
-        // writes 0 in m_tmp[0] and updates m_tmp[1]
+        // writes 0 in m_tmp[0] and m_tmp[2] and updates m_tmp[1]
         dg::blas1::axpby( 1., rhs[1], +alpha, m_tmp[1], y[1]); // u = rhs_u + alpha I_u
     }
     private:
@@ -302,6 +373,54 @@ std::vector<Record> diagnostics_list = {
              dg::blas1::copy(v.f.temperature(), result);
         }
     },
+    {"density_ana", "Analytical solution to the density",
+        []( dg::HVec& result, Variables& v ) {
+            std::string init = v.js[ "init"].get( "type", "step").asString();
+            result = dg::evaluate( dg::zero, v.grid);
+            if ( "mms" == init)
+            {
+                double n_0 = v.js["init"].get("n_0", 1.0).asDouble();
+                double A = v.js["init"].get("A", 1.0).asDouble();
+                double k = v.js["init"].get("k", 1.0).asDouble();
+                double vel = v.js["init"].get("v", 1.0).asDouble();
+                result = dg::evaluate( [=](double x){
+                        return n_0 + A*sin( k *(x-vel*v.time));
+                        }, v.grid);
+            }
+        }
+    },
+    {"velocity_ana", "Analytical solution to the velocity",
+        []( dg::HVec& result, Variables& v ) {
+            std::string init = v.js[ "init"].get( "type", "step").asString();
+            result = dg::evaluate( dg::zero, v.grid);
+            if ( "mms" == init)
+            {
+                double u_0 = v.js["init"].get("u_0", 1.0).asDouble();
+                double B = v.js["init"].get("B", 1.0).asDouble();
+                double k = v.js["init"].get("k", 1.0).asDouble();
+                double vel = v.js["init"].get("v", 1.0).asDouble();
+                result = dg::evaluate( [=](double x){
+                        return u_0 + B*sin( k *(x-vel*v.time));
+                        }, v.grid);
+            }
+        }
+    },
+    {"temperature_ana", "Analytical solution to the temperature",
+        []( dg::HVec& result, Variables& v ) {
+            std::string init = v.js[ "init"].get( "type", "step").asString();
+            result = dg::evaluate( dg::zero, v.grid);
+            if ( "mms" == init)
+            {
+                double t_0 = v.js["init"].get("t_0", 1.0).asDouble();
+                double C = v.js["init"].get("C", 1.0).asDouble();
+                double k = v.js["init"].get("k", 1.0).asDouble();
+                double vel = v.js["init"].get("v", 1.0).asDouble();
+                result = dg::evaluate( [=](double x){
+                        return t_0 + C*sin( k *(x-vel*v.time));
+                        }, v.grid);
+            }
+        }
+    }
 };
 std::vector<Record1d> diagnostics1d_list = {
     {"failed", "Accumulated Number of failed steps",
@@ -371,6 +490,23 @@ int main( int argc, char* argv[])
 
     }
     else if( "wave" == init)
+    {
+        double n_0 = js["init"].get("n_0", 1.0).asDouble();
+        double u_0 = js["init"].get("u_0", 1.0).asDouble();
+        double t_0 = js["init"].get("t_0", 1.0).asDouble();
+        double A = js["init"].get("A", 1.0).asDouble();
+        double B = js["init"].get("B", 1.0).asDouble();
+        double C = js["init"].get("C", 1.0).asDouble();
+        double k = js["init"].get("k", 1.0).asDouble();
+        y0[0] = dg::evaluate( [=](double x){ return n_0 + A*sin( k*x);}, grid);
+        y0[2] = dg::evaluate( [=](double x){ return t_0 + C*sin( k*x);}, grid);
+        dg::blas1::pointwiseDot( y0[0], y0[2], y0[2]);
+        y0[1] = dg::evaluate( [=](double x){ return u_0 + B*sin( k*x);}, vel_grid);
+        if( scheme == "staggered")
+            y0[1] = dg::evaluate( [=](double x){ return
+                    (u_0+B*sin(k*x))*(n_0+A*sin(k*x));}, vel_grid);
+    }
+    else if ( "mms" == init)
     {
         double n_0 = js["init"].get("n_0", 1.0).asDouble();
         double u_0 = js["init"].get("u_0", 1.0).asDouble();

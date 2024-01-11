@@ -393,7 +393,7 @@ struct PlasmaImplicit
             unsigned Nx = m_ex.m_g.N();
             double hx = m_ex.m_g.h();
             assign_ghost_cells( y[0][0], m_ex.m_yg[0][0], m_ex.m_bc_n);
-            assign_ghost_cells( y[0][1], m_ex.m_yg[0][1], m_ex.m_bc_u);
+            assign_ghost_cells( y[0][1], m_ex.m_yg[0][1], m_ex.m_bc_n);
             // ghost cells are shifted by 2
             if( m_ex.m_variant != "explicit" && m_ex.m_variant !=
                     "slope-limiter-explicit")

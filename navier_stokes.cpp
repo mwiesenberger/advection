@@ -168,7 +168,7 @@ struct NavierStokesExplicit
                 //
                 yp[1][i] = -(uh[k+1]*q[k+1]-uh[k]*q[k])/hx;
                 yp[1][i]+= m_nu_u*(uST[k+1] - 2.*uST[k] + uST[k-1]) /hx/hx
-                          +m_nu_n*( dn[k+1]*uST[k+1] - dn[k-1]*uST[k-1])/hx/2.;
+                          +m_nu_n*( dn[k+1]*uST[k+1] - dn[k-1]*uST[k-1])/hx/hx/2.;
             }
             if( m_variant == "explicit" || m_variant == "slope-limiter-explicit")
             {
@@ -457,50 +457,48 @@ struct NavierStokesExplicit
         {
             //Add sources
             dg::HVec tmpN( yp[0]), tmpNST( tmpN), tmpUST(tmpN);
-            if( m_gamma == 1)
-            {
-                tmpN = dg::evaluate( [=](double x){
-                    return m_k*cos(m_k*(-(t*m_v) + x))*(m_B*m_n0 + m_A*(m_u0 - m_v)
-                            + 2*m_A*m_B*sin(m_k*(-(t*m_v) + x)));
-                    }, m_g);
-                tmpNST = dg::evaluate( [=](double x){
-                    return m_k*cos(m_k*(-(t*m_v) + x))*(m_B*m_n0 + m_A*(m_u0 - m_v)
-                            + 2*m_A*m_B*sin(m_k*(-(t*m_v) + x)));
-                    }, m_vel_g);
-                tmpUST = dg::evaluate( [=](double x){
-                    return m_k*((m_B*m_nu_u*m_k*sin(m_k*(-(t*m_v) + x)))/(m_n0
-                                + m_A*sin(m_k*(-(t*m_v) + x))) +
-                            cos(m_k*(-(t*m_v) + x))*(m_B*m_u0 - m_B*m_v +
-                                m_B*m_B*sin(m_k*(-(t*m_v) + x)) +
-                                (m_A*m_alpha)/(m_n0 + m_A*sin(m_k*(-(t*m_v) +
-                                            x)))));
-                    }, m_vel_g);
-                if( m_scheme == "staggered-direct" || m_scheme == "log-staggered")
-                {
-                    for( unsigned k=0; k<Nx; k++)
-                        tmpN[k]/=exp(y[0][k]);
-                }
-                dg::blas1::axpby( 1., tmpN, 1., yp[0]);
-                if( m_scheme == "staggered")
-                {
-                    dg::HVec nST(m_yg[0]), uST( nST);
-                    const dg::HVec & unST = m_yg[1];
-                    const dg::HVec & nn = m_yg[0];
-                    for( unsigned k=0; k<Nx+3; k++)
-                    {
-                        nST[k] = (nn[k] + nn[k+1])/2.;
-                        uST[k] = unST[k]/nST[k];
-                    }
-                    for( unsigned i=0; i<Nx; i++)
-                    {
-                        unsigned k=i+2;
-                        yp[1][i] += tmpUST[i]*nST[k] + uST[k]*tmpNST[i];
-                    }
-                }
-                else
-                    dg::blas1::axpby( 1., tmpUST, 1., yp[1]);
+            tmpN = dg::evaluate( [=](double x){
+                return m_k*(m_A*m_k*m_nu_n*sin(m_k*(-(t*m_v) + x)) +
+                        cos(m_k*(-(t*m_v) + x))*(m_B*m_n0 + m_A*m_u0 - m_A*m_v +
+                        2*m_A*m_B*sin(m_k*(-(t*m_v) + x))));
+                }, m_g);
+            tmpNST = dg::evaluate( [=](double x){
+                return m_k*(m_A*m_k*m_nu_n*sin(m_k*(-(t*m_v) + x)) +
+                        cos(m_k*(-(t*m_v) + x))*(m_B*m_n0 + m_A*m_u0 - m_A*m_v +
+                        2*m_A*m_B*sin(m_k*(-(t*m_v) + x))));
+                }, m_vel_g);
+            tmpUST = dg::evaluate( [=](double x){
+                return (m_k*(-m_A*m_B*m_k*m_nu_n*pow(cos(m_k*(-(t*m_v) + x)),2) +
+                    m_B*m_k*m_nu_u*sin(m_k*(-(t*m_v) + x)) + cos(m_k*(-(t*m_v) + x))*(m_n0 +
+                    m_A*sin(m_k*(-(t*m_v) + x)))* (m_A*m_alpha*m_gamma*pow(m_n0 +
+                    m_A*sin(m_k*(-(t*m_v) + x)),-2 + m_gamma) + m_B*(m_u0 - m_v + m_B*sin(m_k*(-(t*m_v)
+                    + x))))))/ (m_n0 + m_A*sin(m_k*(-(t*m_v) + x)));
+                }, m_vel_g);
 
+            dg::HVec nn( yp[0]), nST(nn), uST(nn);
+            nn = dg::evaluate( [=](double x){
+                return m_n0 + m_A*sin( m_k*(-(t*m_v) + x));
+                }, m_g);
+            nST = dg::evaluate( [=](double x){
+                return m_n0 + m_A*sin( m_k*(-(t*m_v) + x));
+                }, m_vel_g);
+            uST = dg::evaluate( [=](double x){
+                return m_u0 + m_B*sin( m_k*(-(t*m_v) + x));
+                }, m_vel_g);
+            if( m_scheme == "staggered-direct" || m_scheme == "log-staggered")
+            {
+                for( unsigned k=0; k<Nx; k++)
+                    tmpN[k]/=exp(nn[k]);
             }
+            dg::blas1::axpby( 1., tmpN, 1., yp[0]);
+            if( m_scheme == "staggered")
+            {
+                for( unsigned i=0; i<Nx; i++)
+                    yp[1][i] += tmpUST[i]*nST[i] + uST[i]*tmpNST[i];
+            }
+            else
+                dg::blas1::axpby( 1., tmpUST, 1., yp[1]);
+
         }
         bool burger = true;
         for( unsigned i=1; i<Nx; i++)
@@ -709,17 +707,13 @@ std::vector<Record> diagnostics_list = {
             }
             else if ( "mms" == init)
             {
-                double gamma = v.js["physical"].get("gamma",2).asDouble();
-                if( gamma == 1 )
-                {
-                    double n_0 = v.js["init"].get("n_0", 1.0).asDouble();
-                    double A = v.js["init"].get("A", 1.0).asDouble();
-                    double k = v.js["init"].get("k", 1.0).asDouble();
-                    double vel = v.js["init"].get("v", 1.0).asDouble();
-                    result = dg::evaluate( [=](double x){
-                            return n_0 + A*sin( k *(x-vel*v.time));
-                            }, v.grid);
-                }
+                double n_0 = v.js["init"].get("n_0", 1.0).asDouble();
+                double A = v.js["init"].get("A", 1.0).asDouble();
+                double k = v.js["init"].get("k", 1.0).asDouble();
+                double vel = v.js["init"].get("v", 1.0).asDouble();
+                result = dg::evaluate( [=](double x){
+                        return n_0 + A*sin( k *(x-vel*v.time));
+                        }, v.grid);
             }
         }
     },
@@ -800,17 +794,13 @@ std::vector<Record> diagnostics_list = {
             }
             else if ( "mms" == init)
             {
-                double gamma = v.js["physical"].get("gamma",2).asDouble();
-                if( gamma == 1 )
-                {
-                    double u_0 = v.js["init"].get("u_0", 1.0).asDouble();
-                    double B = v.js["init"].get("B", 1.0).asDouble();
-                    double k = v.js["init"].get("k", 1.0).asDouble();
-                    double vel = v.js["init"].get("v", 1.0).asDouble();
-                    result = dg::evaluate( [=](double x){
-                            return u_0 + B*sin( k *(x-vel*v.time));
-                            }, v.grid);
-                }
+                double u_0 = v.js["init"].get("u_0", 1.0).asDouble();
+                double B = v.js["init"].get("B", 1.0).asDouble();
+                double k = v.js["init"].get("k", 1.0).asDouble();
+                double vel = v.js["init"].get("v", 1.0).asDouble();
+                result = dg::evaluate( [=](double x){
+                        return u_0 + B*sin( k *(x-vel*v.time));
+                        }, v.grid);
             }
         }
     }
