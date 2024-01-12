@@ -588,7 +588,7 @@ int main( int argc, char* argv[])
     }
     /// Set global attributes
     std::map<std::string, std::string> att;
-    att["title"] = "Output file of advection/navier_stokes.cpp";
+    att["title"] = "Output file of advection/temp_navier_stokes.cpp";
     att["Conventions"] = "CF-1.7";
     ///Get local time and begin file history
     auto ttt = std::time(nullptr);
