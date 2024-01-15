@@ -139,10 +139,13 @@ struct PlasmaExplicit
         unsigned iter;
         if( m_mode == "adiabatic")
         {
-            std::array<dg::HVec, 2> tt ( nt);
-            dg::blas1::pointwiseDivide( tt, nn, tt);
+            dg::HVec tt ( nt[1]);
+            dg::blas1::pointwiseDivide( tt, nn[1], tt);
             dg::blas1::copy( nn[1], m_rhs);
-            m_poisson.set_temperature( tt[1]);
+            m_poisson.set_temperature( tt);
+            //initial guess
+            dg::blas1::transform( nn[1], m_phi, dg::LN<double>());
+            dg::blas1::pointwiseDot( m_phi, tt, m_phi);
         }
         else
             dg::blas1::axpby( 1., nn[1], -1., nn[0], m_rhs);
@@ -167,8 +170,6 @@ struct PlasmaExplicit
                     m_norm, m_eps, m_eps_D);
         else if ( m_method == "anderson")
         {
-            if( m_mode == "adiabatic")
-                dg::blas1::transform( nn[1], m_phi, dg::LN<double>());
             iter = m_anderson.solve( m_poisson, m_phi, m_rhs, m_norm, m_eps,
                     m_eps*m_eps_D, 2*m_phi.size(), m_damping, m_mMax, false);
         }
@@ -267,6 +268,7 @@ struct PlasmaExplicit
                         yp[1][s][i] += -1./m_mu[s]*( nt[k+1] -nt[k])/hx ;
                         yp[1][s][i] += -m_z[s]/m_mu[s]*nST*( m_ghphi[k+1]
                                 -m_ghphi[k])/hx;
+
                     }
                 }
             }
@@ -427,6 +429,7 @@ struct PlasmaImplicitSolver
     void operator()( double alpha, double t, Vector& y, const Vector& rhs)
     {
         dg::blas1::copy( rhs[0], y[0]);// I_n = 0
+        dg::blas1::copy( rhs[2], y[2]);// I_t = 0
         m_im( t, y, m_tmp); //ignores y[1], solves Poisson at time t for y[0] and
         // writes 0 in m_tmp[0] and updates m_tmp[1]
         dg::blas1::axpby( 1., rhs[1], +alpha, m_tmp[1], y[1]); // u = rhs_u + alpha I_u
@@ -485,12 +488,12 @@ std::vector<Record> diagnostics_list = {
     },
     {"te", "Numerical electron temperature",
         []( dg::HVec& result, Variables& v ) {
-            dg::blas1::pointwiseDivide( 1., v.y0[2][0], v.y0[0][0], 1., result);
+            dg::blas1::pointwiseDivide( 1., v.y0[2][0], v.y0[0][0], 0., result);
         }
     },
     {"ti", "Numerical ion temperature",
         []( dg::HVec& result, Variables& v ) {
-            dg::blas1::pointwiseDivide( 1., v.y0[2][1], v.y0[0][1], 1., result);
+            dg::blas1::pointwiseDivide( 1., v.y0[2][1], v.y0[0][1], 0., result);
         }
     },
     {"potential", "potential",
@@ -602,21 +605,10 @@ std::vector<Record1d> diagnostics1d_list = {
 ////////////////////////////////DIAGNOSTICS END/////////////////////////////////
 } //namespace equations
 
-namespace dg
-{
-
-// register Poisson1d with dg library
-template<>
-struct TensorTraits< equations::Poisson1d >
-{
-    using value_type      = double;
-    using tensor_category = SelfMadeMatrixTag;
-};
-}
 int main( int argc, char* argv[])
 {
     ////Parameter initialisation ////////////////////////////////////////////
-    dg::file::WrappedJsonValue js( dg::file::error::is_warning);
+    dg::file::WrappedJsonValue js( dg::file::error::is_throw);
     if( argc == 1)
         dg::file::file2Json( "input/default.json", js.asJson(), dg::file::comments::are_discarded);
     else
@@ -732,6 +724,7 @@ int main( int argc, char* argv[])
     else if( timestepper == "ERK")
     {
         erk_adaptive = { tableau, y0};
+        nfailed = &erk_adaptive.nfailed();
         dg::AdaptiveTimeloop<Vector> loop( erk_adaptive, ex,
                 dg::pid_control, dg::l2norm, rtol, atol);
         loop.set_dt(1e-8);

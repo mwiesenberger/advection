@@ -447,7 +447,7 @@ std::vector<Record1d> diagnostics1d_list = {
 int main( int argc, char* argv[])
 {
     ////Parameter initialisation ////////////////////////////////////////////
-    dg::file::WrappedJsonValue js( dg::file::error::is_warning);
+    dg::file::WrappedJsonValue js( dg::file::error::is_throw);
     if( argc == 1)
         dg::file::file2Json( "input/default.json", js.asJson(), dg::file::comments::are_discarded);
     else

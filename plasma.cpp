@@ -710,6 +710,7 @@ int main( int argc, char* argv[])
     else if( timestepper == "ERK")
     {
         erk_adaptive = { tableau, y0};
+        nfailed = &erk_adaptive.nfailed();
         dg::AdaptiveTimeloop<Vector> loop( erk_adaptive, ex,
                 dg::pid_control, dg::l2norm, rtol, atol);
         loop.set_dt(1e-8);
