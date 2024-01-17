@@ -488,12 +488,12 @@ std::vector<Record> diagnostics_list = {
     },
     {"te", "Numerical electron temperature",
         []( dg::HVec& result, Variables& v ) {
-            dg::blas1::pointwiseDivide( 1., v.y0[2][0], v.y0[0][0], 0., result);
+            dg::blas1::pointwiseDivide( v.y0[2][0], v.y0[0][0], result);
         }
     },
     {"ti", "Numerical ion temperature",
         []( dg::HVec& result, Variables& v ) {
-            dg::blas1::pointwiseDivide( 1., v.y0[2][1], v.y0[0][1], 0., result);
+            dg::blas1::pointwiseDivide( v.y0[2][1], v.y0[0][1], result);
         }
     },
     {"potential", "potential",
