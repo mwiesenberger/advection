@@ -61,6 +61,7 @@ struct Continuity
         m_scheme = js["advection"].get("type", "upwind").asString();
         m_vel = js["physical"].get("velocity", 1.0).asDouble();
         m_nu = js["physical"].get( "nu", 0.).asDouble();
+        m_exp = js["physical"].get( "exponent", 1.).asDouble();
         std::cout << "Compute scheme "<<m_scheme<<"\n";
         m_forward = dg::create::dx( g, g.bcx(), dg::forward);
         m_backward = dg::create::dx( g, g.bcx(), dg::backward);
@@ -97,6 +98,24 @@ struct Continuity
                     yp[i] -= m_vel*( -m_yg[k+2] + 4*m_yg[k+1] - 3*m_yg[k])/2./hx;
             }
         }
+        else if( m_scheme == "diesel")
+        {
+            dg::HVec tmp(m_yg);
+            for( unsigned k=1; k<Nx+3; k++)
+            {
+                if( fabs(m_yg[k+1]) < fabs(m_yg[k]))
+                    tmp[k] = m_vel*m_yg[k];
+                else if( fabs(m_yg[k+1]) == fabs(m_yg[k]))
+                    tmp[k] = 0;
+                else
+                    tmp[k] = -m_vel*m_yg[k+1];
+            }
+            for( unsigned i=0; i<Nx; i++)
+            {
+                unsigned k=i+2;
+                yp[i] -= (tmp[k]-tmp[k-1])/hx;
+            }
+        }
         else if ( m_scheme == "centered")
         {
             for( unsigned i=0; i<Nx; i++)
@@ -113,13 +132,17 @@ struct Continuity
                     m_tmp1, m_tmp0);
         }
         if (m_scheme.find("dg-upwind") != std::string::npos)
-            dg::blas2::symv( -m_nu, m_ell, y, 1., yp);
+        {
+            for( unsigned i=0; i<Nx; i++)
+                m_tmp0[i] = pow( y[i], m_exp);
+            dg::blas2::symv( -m_nu, m_ell, m_tmp0, 1., yp);
+        }
         else
         {
             for( unsigned i=0; i<Nx; i++)
             {
                 unsigned k=i+2;
-                yp[i] +=  m_nu*( m_yg[k+1]-2.*m_yg[k]+m_yg[k-1])/hx/hx;
+                yp[i] +=  m_nu*( pow( m_yg[k+1], m_exp) -2.*pow(m_yg[k], m_exp) + pow( m_yg[k-1], m_exp))/hx/hx;
             }
         }
     }
@@ -131,7 +154,7 @@ struct Continuity
     dg::HMatrix m_forward, m_backward;
     dg::Elliptic1d<dg::Grid1d, dg::HMatrix, dg::HVec> m_ell;
     dg::Grid1d m_g;
-    double m_vel, m_nu;
+    double m_vel, m_nu, m_exp;
 
 };
 
@@ -234,6 +257,13 @@ int main( int argc, char* argv[])
         double x_0 = js["init"].get("x_0", 1.0).asDouble();
         y0 = dg::evaluate( [=]( double x){ return n_0 + amp*sin( k*(x-x_0));},
                 grid);
+    }
+    else if( "gaussian" == init)
+    {
+        double amp = js["init"].get("amp", 1.0).asDouble();
+        double x_0 = js["init"].get("x_0", 1.0).asDouble();
+        double sigma = js["init"].get("sigma", 1.0).asDouble();
+        y0 = dg::evaluate( dg::GaussianX( x_0*grid.lx(), sigma*grid.lx(), amp), grid);
     }
 
     std::string tableau= js["timestepper"].get("tableau",
